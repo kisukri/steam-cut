@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Steam 展柜切图</title>
+  <meta name="description" content="Split videos, GIFs and images into Steam Workshop / Artwork showcase files in your browser. 動画や GIF を Steam ショーケース用に分割。视频 / GIF 一键切成 Steam 展柜。">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237aa7ff'/%3E%3Cstop offset='1' stop-color='%23a68bff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%230d1118'/%3E%3Cg fill='url(%23g)'%3E%3Crect x='5' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='10.2' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='15.4' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='20.6' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='25.8' y='8' width='1.4' height='16' rx='.7'/%3E%3C/g%3E%3C/svg%3E">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <header class="nav">
+    <div class="wrap nav-inner">
+      <a class="brand" href="#top"><span class="logo"></span><span data-i18n="app.title"></span></a>
+      <nav>
+        <a href="#make" data-i18n="nav.make"></a>
+        <a href="#codes" data-i18n="nav.codes"></a>
+        <a href="faq.html" data-i18n="nav.faq"></a>
+        <a class="gh" href="https://github.com/kisukri/steam-cut" target="_blank" rel="noopener" aria-label="GitHub"><svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg><span>GitHub</span></a>
+        <div class="lang" id="lang" role="group" aria-label="Language"></div>
+      </nav>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero wrap">
+      <h1 class="grad" data-i18n="app.title"></h1>
+    </section>
+
+    <div id="make">
+      <section class="step wrap">
+        <div class="step-head"><h2 data-i18n="s1.title"></h2><button type="button" class="pill small" id="demoToggle" aria-expanded="false" aria-controls="demoBox"></button><button type="button" class="pill small clear-btn" id="clearBtn" data-i18n="s1.clear" hidden></button></div>
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="video/*,image/gif,image/png,image/jpeg,image/webp" hidden>
+          <span class="drop-icon" aria-hidden="true"></span>
+          <strong data-i18n="s1.drop"></strong>
+          <span class="drop-sub" id="fileInfo" data-i18n="s1.sub"></span>
+        </label>
+        <p class="m-note" data-i18n="m.pcEarly"></p>
+        <div class="demo" id="demoBox" hidden>
+          <div class="profile-bg">
+            <div class="showcase-mock">
+              <div class="mock-head" data-i18n="show.workshop"></div>
+              <canvas id="demoCanvas"></canvas>
+            </div>
+          </div>
+          <div class="demo-side">
+            <p class="meta" data-i18n="demo.caption"></p>
+            <div class="demo-actions">
+              <button type="button" class="pill" id="demoPlay"></button>
+              <button type="button" class="pill solid" id="tryDemo" data-i18n="demo.try"></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="step wrap" id="stepLayout" hidden>
+        <div class="step-head"><h2 data-i18n="s2.title"></h2></div>
+
+        <div class="seg" id="layouts" role="tablist"></div>
+        <p class="layout-desc" id="layoutDesc"></p>
+
+        <div class="stage-wrap">
+          <div class="stage" id="stage">
+            <canvas id="stageCanvas"></canvas>
+            <div class="crop" id="crop">
+              <div class="crop-guides" id="cropGuides"></div>
+              <span class="h nw" data-h="nw"></span><span class="h ne" data-h="ne"></span>
+              <span class="h sw" data-h="sw"></span><span class="h se" data-h="se"></span>
+            </div>
+          </div>
+        </div>
+
+        <div class="toolbar">
+          <div class="presets" id="presets">
+            <span class="meta" data-i18n="preset.label"></span>
+            <button type="button" class="pill small" data-r="0.5" data-i18n="preset.banner"></button>
+            <button type="button" class="pill small" data-r="1" data-i18n="preset.square"></button>
+            <button type="button" class="pill small" data-r="1.6" data-i18n="preset.tall"></button>
+          </div>
+          <button type="button" class="pill" id="fitAll" data-i18n="s2.fitAll"></button>
+          <button type="button" class="pill" id="fitWidth" data-i18n="s2.fitWidth"></button>
+          <label class="switch-row"><input type="checkbox" class="switch" id="lockRatio"><span data-i18n="s2.lock"></span></label>
+        </div>
+        <p class="legend">
+          <span><i class="key key-box"></i><span data-i18n="legend.box"></span></span>
+          <span><i class="key key-gap"></i><span data-i18n="legend.gap"></span></span>
+          <span class="meta" id="cropInfo"></span>
+        </p>
+
+        <div id="timeBox" hidden>
+          <div class="toolbar">
+            <button type="button" class="pill solid" id="playBtn" data-i18n="s2.play"></button>
+            <label class="field-inline"><span data-i18n="s2.start"></span> <input type="number" id="tStart" min="0" step="0.1" value="0"> <span data-i18n="unit.sec"></span></label>
+            <label class="field-inline"><span data-i18n="s2.end"></span> <input type="number" id="tEnd" min="0" step="0.1" value="0"> <span data-i18n="unit.sec"></span></label>
+            <span class="meta" id="timeInfo"></span>
+          </div>
+          <input type="range" id="scrub" min="0" max="1000" value="0" class="scrub" aria-label="preview position">
+        </div>
+
+        <p class="label" data-i18n="s2.preview"></p>
+        <div class="preview-box profile-bg">
+          <div class="showcase-mock">
+            <div class="mock-head" id="previewHead"></div>
+            <canvas id="previewCanvas"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <section class="step wrap" id="stepOutput" hidden>
+        <div class="step-head"><h2 data-i18n="s3.title"></h2></div>
+
+        <div class="fields">
+          <label class="field" id="fpsField"><span data-i18n="f.fps"></span>
+            <select id="fps">
+              <option value="0" data-i18n="f.fps.orig"></option>
+              <option value="10" data-i18n="f.fps.small" data-i18n-vars='{"n":10}'></option>
+              <option value="12" data-i18n="f.fps.n" data-i18n-vars='{"n":12}'></option>
+              <option value="15" data-i18n="f.fps.rec" data-i18n-vars='{"n":15}' selected></option>
+              <option value="20" data-i18n="f.fps.n" data-i18n-vars='{"n":20}'></option>
+              <option value="25" data-i18n="f.fps.n" data-i18n-vars='{"n":25}'></option>
+              <option value="30" data-i18n="f.fps.n" data-i18n-vars='{"n":30}'></option>
+              <option value="50" data-i18n="f.fps.max" data-i18n-vars='{"n":50}'></option>
+            </select>
+          </label>
+          <label class="field"><span data-i18n="f.scale"></span>
+            <select id="scale">
+              <option value="1" data-i18n="f.scale.1"></option>
+              <option value="1.5" data-i18n="f.scale.15"></option>
+              <option value="2" data-i18n="f.scale.2"></option>
+            </select>
+          </label>
+        </div>
+        <p class="meta defaults" data-i18n="f.defaults"></p>
+
+        <details class="adv">
+          <summary data-i18n="f.adv"></summary>
+          <div class="adv-body">
+            <div class="fields">
+              <label class="field" id="colorsField"><span data-i18n="f.colors"></span>
+                <select id="colors">
+                  <option value="256" data-i18n="f.colors.256" selected></option>
+                  <option value="128" data-i18n="f.colors.128"></option>
+                  <option value="64" data-i18n="f.colors.64"></option>
+                </select>
+              </label>
+              <label class="field field-color"><span data-i18n="f.bg"></span>
+                <input type="color" id="bg" value="#000000">
+              </label>
+              <label class="field"><span data-i18n="f.gap"></span>
+                <input type="number" id="gap" min="0" max="30" step="0.5">
+              </label>
+            </div>
+            <div class="switches">
+              <label class="switch-row"><input type="checkbox" class="switch" id="removeGaps" checked><span data-i18n="f.removeGaps"></span><em data-i18n="f.removeGaps.em"></em></label>
+              <label class="switch-row" id="autoFitField"><input type="checkbox" class="switch" id="autoFit" checked><span data-i18n="f.autoFit"></span><em data-i18n="f.autoFit.em"></em></label>
+              <label class="switch-row"><input type="checkbox" class="switch" id="hexify" checked><span data-i18n="f.hexify"></span><em data-i18n="f.hexify.em"></em></label>
+            </div>
+            <p class="meta" data-i18n="f.gapNote"></p>
+          </div>
+        </details>
+
+        <p class="meta out-info" id="outInfo"></p>
+        <p class="meta est-info" id="estInfo"></p>
+        <div class="toolbar">
+          <button type="button" class="cta" id="go" data-i18n="f.go"></button>
+          <button type="button" class="pill" id="cancel" data-i18n="f.cancel" hidden></button>
+        </div>
+        <div class="progress" id="progress" hidden><div class="bar" id="bar"></div></div>
+        <p class="status" id="status"></p>
+
+        <div class="results" id="results" hidden>
+          <div class="mock-stage profile-bg">
+            <div class="showcase-mock">
+              <div class="mock-head" id="resultHead"></div>
+              <div class="mock" id="mock"></div>
+            </div>
+          </div>
+          <p class="meta center" data-i18n="res.sync"></p>
+          <div class="filehead">
+            <p class="sub-title"><span data-i18n="res.files"></span> <span class="meta" id="doneCount"></span></p>
+            <button type="button" class="pill" id="zip" data-i18n="res.zip"></button>
+          </div>
+          <ul class="files" id="files"></ul>
+        </div>
+      </section>
+
+      <section class="step wrap" id="stepUpload" hidden>
+        <div class="step-head"><h2 data-i18n="s4.title"></h2></div>
+        <p class="pc-note" data-i18n-html="s4.pc"></p>
+        <div id="uploadGuide"></div>
+      </section>
+    </div>
+
+    <section class="step wrap" id="codes">
+      <div class="step-head"><h2 data-i18n="codes.title"></h2></div>
+      <details class="codes-wrap" id="codesWrap" open>
+        <summary data-i18n="codes.more"></summary>
+        <div id="codePanel"></div>
+      </details>
+    </section>
+  </main>
+
+  <button type="button" class="cta fab" id="fab" data-i18n="f.go" hidden></button>
+
+  <div class="modal" id="modal" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="mTitle">
+      <h3 id="mTitle"></h3>
+      <p id="mBody"></p>
+      <div class="modal-actions">
+        <button type="button" class="pill" id="mCancel" data-i18n="dlg.cancel"></button>
+        <button type="button" class="cta" id="mOk"></button>
+      </div>
+    </div>
+  </div>
+
+  <footer class="foot wrap">
+    <span>© 2026 キスクリ</span>
+    <span data-i18n="foot.note"></span>
+  </footer>
+
+  <script src="vendor/jszip.min.js"></script>
+  <script type="module" src="js/app.js"></script>
+</body>
+</html>

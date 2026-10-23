@@ -1,59 +1,46 @@
-# Steam 展柜切图
+# Steam 美化工具
 
 **中文** | [English](README.en.md) | [日本語](README.ja.md)
 
-把视频、GIF、图片切成 Steam 个人资料展柜需要的文件，并给出上传用的控制台代码
-
 **https://kisukri.github.io/steam-cut/**
 
-## 支持的展柜
+纯前端的 Steam 个人资料展柜素材工具，所有处理都在浏览器本地完成
 
-| 展柜 | 栏数 | 显示宽度 |
-|---|---|---|
-| 创意工坊 | 5 | 每栏 122.4px（缝隙 4px） |
-| 艺术作品 / 截图 | 2 | 506px + 100px |
-| 精选艺术作品 | 1 | 630px |
+## 能做什么
 
-## 功能
+- 把视频 / GIF / 图片切成创意工坊（5 栏）、艺术作品 / 截图（2 栏）、精选艺术作品（1 栏）需要的 GIF
+- 把图片或音乐封面做成会转的唱片 / CD，用作指南图标
+- 根据音乐生成「播放器」样式的指南标题和描述
+- 给出每种展柜的上传控制台代码
 
-- 输入：mp4 / webm / mov、GIF、png / jpg / webp
-- 拖动框选画面、设置起止时间、预览在 Steam 上的效果
-- 自动扣除栏间缝隙，拼接不错位
-- 5 栏共用调色板，帧数和时长完全一致
-- 最高 50 帧/秒（GIF 上限）
-- 示例素材：没有文件也能先试一遍
-- 比例快捷选项：横幅 / 方形 / 竖长
-- 生成前预估文件大小，超过 5MB 会提前提示
-- 按浏览器语言自动选择界面语言
-- 超过 5MB 自动减帧（总时长不变）
-- 自动 Hex 修改（GIF 末尾 0x3B → 0x21）
-- 打包 zip 下载（附上传说明）
-- 上传代码：每种展柜一条，执行后控制台显示 ✅ / ⚠️
-- 空白标题代码（单独一条，也可以合并成一条）
-- 日本語 / 中文 / English
+## 技术栈
 
-所有处理都在浏览器本地完成，文件不会上传到服务器
-
-## 上传代码
-
-在 [Steam 上传页](https://steamcommunity.com/sharedfiles/edititem/767/3/)选好文件后，F12 → 控制台，粘贴后回车
-
-| 展柜 | 代码 |
+| 部分 | 用的东西 |
 |---|---|
-| 创意工坊 | `$J('[name=consumer_app_id]').val(480),$J('[name=file_type]').val(0),$J('[name=visibility]').val(0);` |
-| 艺术作品 / 精选艺术作品 | `$J('#image_width').val(1000),$J('#image_height').val(1);` |
-| 截图 | `$J('#image_width').val(1000),$J('#image_height').val(1),$J('[name=file_type]').val(5);` |
-| 空白标题 | `$J('[name=title]').val('‎ ');` |
+| 页面 | 原生 HTML / CSS / JavaScript（ES 模块），无框架、无构建 |
+| 画面处理 | Canvas 2D、`<video>` / `<img>` 解码 |
+| GIF 解码 | [gifuct-js](https://github.com/matt-way/gifuct-js) |
+| GIF 编码 | [gifenc](https://github.com/mattdesl/gifenc)，在 Web Worker 里跑 |
+| 打包下载 | [JSZip](https://github.com/Stuk/jszip)，点下载时才加载 |
+| 多语言 | 每种语言一个模块，`import()` 按需加载 |
+| 设置保存 | localStorage |
+| 部署 | GitHub Pages（静态文件） |
 
-工具页面上的代码末尾还会多一句检查，告诉你是否生效
+## 原理
 
-## 部署到 GitHub Pages
-
-Settings → Pages → Source 选「Deploy from a branch」，分支 `main`，目录 `/ (root)`，保存
+- **切图**：按 Steam 实际显示宽度把裁剪区域分成几栏，栏间缝隙对应的像素直接丢掉，拼起来不会错位
+- **截帧**：视频用 `<video>` 逐帧 seek 后画到 Canvas；GIF 用 gifuct-js 解出每帧再合成
+- **调色板**：每帧先把整条画面一起量化成一套 256 色调色板，再切给各栏，保证接缝处颜色一致；帧以 1 字节/像素的索引存储，内存约为 RGBA 的 1/4
+- **压到上限**（展柜 5MB，指南封面 2MB）：先估算单帧大小，超出就均匀抽帧，同时把延时加长，总时长不变；GIF 延时单位是 1/100 秒，舍入误差会累计补回去
+- **Hex 修改**：把 GIF 最后一个字节 `0x3B` 改成 `0x21`，Steam 就不会重新压缩
+- **上传代码**：在 Steam 上传页的控制台里用 `$J` 改隐藏表单字段（比如把 `image_width` 设为 1000、`image_height` 设为 1），再读一遍字段确认是否生效
+- **旋转唱片**：Canvas 每帧旋转封面，再画上固定不动的反光；圆外和中间的孔做成透明（只给不透明像素做量化，留一个索引专门表示透明）
+- **音乐封面**：直接解析文件字节，mp3 读 ID3v2 的 APIC，flac 读 PICTURE 块，m4a 读 `covr` atom，顺便取出歌名和歌手
+- **播放器文字**：用 `─` 和圆点拼进度条，按当前时间算圆点位置；Steam 展柜会把描述里的换行变成空格，所以整段写成一行，靠宽度折行
 
 ## 本地运行
 
-页面用了 ES 模块和 Web Worker，需要本地服务器：
+ES 模块和 Web Worker 需要通过 HTTP 访问，不能直接双击打开：
 
 ```bash
 python3 -m http.server 8000
@@ -63,19 +50,24 @@ python3 -m http.server 8000
 ## 目录
 
 ```
-index.html          页面
-faq.html            常见问题
-css/style.css       样式
-js/faq.js           常见问题页
-js/app.js           界面逻辑
-js/i18n.js          三语文案
-js/codes.js         上传代码
-js/layout.js        各展柜尺寸
-js/media.js         视频 / GIF / 图片解码
-js/export.js        截帧、编码、自动减帧
-js/gif-worker.js    后台处理线程
-js/hexify.js        Hex 修改
-vendor/             gifenc、gifuct-js、JSZip（MIT）
+index.html / faq.html  页面
+css/style.css          样式
+js/app.js              入口
+js/source.js           读取文件
+js/media.js            视频 / GIF / 图片解码
+js/cover.js            音乐封面和标签解析
+js/stage.js            裁剪框、撤销
+js/preview.js          预览
+js/export.js           截帧、抽帧
+js/gif-worker.js       量化和编码（Worker）
+js/hexify.js           Hex 修改
+js/guide.js            旋转唱片绘制
+js/player-text.js      播放器文字
+js/codes.js            上传代码
+js/layout.js           各展柜尺寸
+js/i18n.js, js/lang/   多语言
+js/prefs.js            设置保存
+vendor/                gifenc、gifuct-js、JSZip（MIT）
 ```
 
 ## 参考
@@ -87,4 +79,4 @@ vendor/             gifenc、gifuct-js、JSZip（MIT）
 [lannahirave/steam-artwork-simplifier](https://github.com/lannahirave/steam-artwork-simplifier)、
 [sapic（steam.design）](https://github.com/sapic/sapic)
 
-© 2026 キスクリ · [MIT](LICENSE) · 本项目为社区公益项目，与 Valve / Steam 无关
+© 2026 キスクリ · [MIT](LICENSE) · 社区公益项目，与 Valve / Steam 无关

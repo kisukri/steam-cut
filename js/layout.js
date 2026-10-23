@@ -1,5 +1,5 @@
-// display widths, css px (steam.design cfg / profilev2.css)
-// gaps vary ~1px between sources, tweakable in adv
+// widths in css px, from steam.design + profilev2.css
+// gaps differ by ~1px depending who you ask, so it's editable in adv
 export const LAYOUTS = {
   workshop: {
     key: 'workshop',
@@ -16,9 +16,15 @@ export const LAYOUTS = {
     widths: [630],
     gap: 0,
   },
+  // 256 out, steam shows 160. bigger = sharper on hidpi
+  guide: {
+    key: 'guide',
+    widths: [256],
+    gap: 0,
+  },
 };
 
-// removeGaps: cut gaps out of src so seams line up
+// removeGaps: cut the gaps out of the src so the pic lines up across panels
 export function computeSlots(layout, { gap, removeGaps }) {
   const g = removeGaps ? gap : 0;
   const slots = [];

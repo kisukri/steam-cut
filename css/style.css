@@ -19,7 +19,7 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: 72px; }
+html { scroll-behavior: smooth; scroll-padding-top: 72px; scrollbar-gutter: stable; }
 body {
   margin: 0;
   min-height: 100vh;
@@ -398,7 +398,7 @@ body { font-size: 15px; line-height: 1.6; }
 .foot a { color: var(--text-2); }
 .foot span + a::before, .foot a + span::before { content: "·"; margin-right: 14px; color: var(--muted); }
 
-/* sample / steam frame / presets */
+/* sample, steam frame, presets */
 .profile-bg {
   border-radius: var(--r-lg);
   background:
@@ -482,3 +482,54 @@ button:focus-visible, a:focus-visible { outline: 2px solid var(--accent); outlin
 .demo { margin-top: 16px; padding-top: 0; border-top: 0; }
 .clear-btn { margin-left: auto; }
 .clear-btn:hover { border-color: var(--bad); color: var(--bad); }
+
+/* guide */
+.guide-opts { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 22px; margin: 0 0 18px; padding: 14px 16px; border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--line); }
+.g-row { display: inline-flex; align-items: center; gap: 10px; }
+.seg.small { margin: 0; padding: 3px; }
+.seg.small .seg-btn { padding: 5px 12px; font-size: 13px; }
+.crop-guides.round { overflow: hidden; }
+.crop-guides .circle { position: absolute; inset: 0; border-radius: 50%; border: 1px dashed rgba(255, 255, 255, 0.7); box-shadow: 0 0 0 9999px rgba(6, 8, 12, 0.45); }
+.g-row .meta, .guide-opts .field-inline span { white-space: nowrap; }
+@media (max-width: 640px) {
+  .seg.small { width: auto; flex-wrap: nowrap; }
+  .seg.small .seg-btn { flex: none; }
+}
+
+input[type=range] { accent-color: var(--accent); }
+#gEdge { width: 120px; }
+
+/* player */
+input[type=text] { font: inherit; font-size: 14px; color: var(--text); background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--r-sm); padding: 7px 10px; outline: none; width: 100%; }
+input[type=text]:focus { border-color: var(--accent); }
+input.bad { border-color: var(--bad); }
+.drop.small { min-height: 110px; }
+.p-fields { margin-top: 20px; }
+.p-len { display: flex; align-items: center; gap: 10px; }
+.p-len input { flex: 1; }
+.p-note { margin-top: 14px; }
+.player-ctl { margin-top: 14px; }
+.player-ctl .p-time { width: 84px; }
+.player-ctl .p-range { flex: 1; min-width: 140px; accent-color: var(--accent); }
+.player-ctl .copy { padding: 7px 16px; }
+
+/* guide: preview on top, otherwise you can't see it while dragging the rim */
+.work { display: flex; flex-direction: column; }
+.work.guide .work-preview { order: -1; margin-bottom: 18px; }
+
+/* fake steam guide showcase, numbers copied from profilev2.css */
+.guide-mock { width: 652px; max-width: 100%; margin: 0 auto; background: rgba(0,0,0,.3); border-radius: 3px; overflow: hidden; font-family: "Motiva Sans", Arial, Helvetica, sans-serif; font-size: 13px; text-align: left; }
+.gm-head { padding: 5px 10px; background: linear-gradient(90deg, rgba(255,255,255,.08) 0%, rgba(255,255,255,.02) 90%); color: #fff; font-size: 16px; font-weight: 200; line-height: 30px; }
+.gm-block { padding: 20px 10px 11px; }
+.gm-bg { background: rgba(0,0,0,.3); padding: 8px; border-radius: 5px; overflow: hidden; }
+.gm-item { min-height: 160px; position: relative; overflow: hidden; }
+.preview-box .gm-img { float: left; margin: 0 8px 0 0; width: 160px; height: auto; aspect-ratio: 1; max-width: 40%; }
+.gm-details { color: #8f98a0; }
+.gm-title { color: #fff; font-size: 24px; font-weight: 200; line-height: 29px; max-height: 58px; overflow: hidden; padding-top: 10px; overflow-wrap: anywhere; }
+.gm-by { margin-bottom: 8px; }
+.gm-name { color: #fff; }
+.gm-app { line-height: 32px; margin-bottom: 8px; overflow: hidden; }
+.gm-stars { float: right; }
+.gm-desc { line-height: 18px; max-height: 72px; overflow-wrap: anywhere; }
+.gm-note { margin: 12px 0 0; padding: 10px 14px; border-radius: 10px; background: rgba(242,196,109,.08); border: 1px solid rgba(242,196,109,.3); color: #f2c46d; font-size: 13px; line-height: 1.6; }
+.gm-note b { color: #ffd98a; }

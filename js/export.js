@@ -1,9 +1,13 @@
-// capture -> idx (worker) -> gif (fit 5MB) -> hexify
-// frames stored as 1B/px idx, ~1/4 of rgba
+// flow: grab frames -> idx in worker -> gif, shrink till under the limit (5MB, guide 2MB) -> hexify
+// keep frames as 1 byte/px idx not rgba, 4x less mem. long vids blew up before
 import { hexifyGif, hexifyPng } from './hexify.js';
 import { t } from './i18n.js';
 
 export const STEAM_LIMIT = 5 * 1024 * 1024;
+// guide img caps at 2MB on steam. stay a bit under in case they mean 2,000,000
+export const GUIDE_LIMIT = 2000000;
+export const sizeLimit = (key) => (key === 'guide' ? GUIDE_LIMIT : STEAM_LIMIT);
+export const limitMB = (key) => (key === 'guide' ? 2 : 5);
 const MEMORY_BUDGET = 700 * 1024 * 1024;
 const SAMPLE_PIXELS = 20000;
 const POOL = Math.max(2, Math.min(4, (navigator.hardwareConcurrency || 4) - 1));
@@ -71,7 +75,16 @@ class IndexPool {
   }
 }
 
-export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled }) {
+function defaultPaint(crop, bg) {
+  return (ctx, w, h, drawable) => {
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, w, h);
+    ctx.drawImage(drawable, crop.x, crop.y, crop.w, crop.h, 0, 0, w, h);
+  };
+}
+
+// guide disc passes its own frames/paint, everyone else uses plain crop
+export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -82,7 +95,8 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
   ctx.imageSmoothingQuality = 'high';
 
   const step = Math.max(1, Math.round(Math.sqrt((w * h) / SAMPLE_PIXELS)));
-  const expected = Math.min(maxFrames, source.animated ? estimateFrames(source, start, end, fps) : 1);
+  const expected = Math.min(maxFrames, exp || (source.animated ? estimateFrames(source, start, end, fps) : 1));
+  const draw = paint || defaultPaint(crop, bg);
   const panelGeo = geo.panels.map((p) => ({ x: p.x, w: p.w }));
   const pool = new IndexPool(POOL);
   const jobs = [];
@@ -91,13 +105,12 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
   let done = 0;
 
   try {
-    for await (const { drawable, delay } of source.iterate(start, end, fps)) {
+    for await (const f of frames || source.iterate(start, end, fps)) {
       if (isCancelled && isCancelled()) throw new Error(t('st.cancelled'));
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(drawable, crop.x, crop.y, crop.w, crop.h, 0, 0, w, h);
+      const { drawable, delay } = f;
+      draw(ctx, w, h, drawable, f);
       const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
-      const job = pool.run({ type: 'index', rgba, w, h, step, colors, panels: panelGeo }, [rgba]).then((r) => {
+      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo }, [rgba]).then((r) => {
         done++;
         if (onProgress) onProgress(done, expected);
         return r;
@@ -106,7 +119,7 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
       live.add(job);
       job.then(() => live.delete(job), () => live.delete(job));
       delays.push(delay);
-      // cap in-flight frames
+      // don't queue too many or mem spikes
       while (live.size > POOL * 3) await Promise.race(live);
       if (delays.length >= maxFrames) break;
     }
@@ -117,6 +130,7 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
       delays,
       widths: geo.panels.map((p) => p.w),
       height: h,
+      alpha,
     };
   } finally {
     pool.close();
@@ -136,7 +150,7 @@ function estimateFrames(source, start, end, fps) {
   return 1;
 }
 
-// drop frames evenly, keep total duration
+// drop frames evenly, total time stays the same
 function pickFrames(delays, keep) {
   const n = delays.length;
   if (keep >= n) return { idx: delays.map((_, i) => i), delays: delays.slice() };
@@ -151,7 +165,7 @@ function pickFrames(delays, keep) {
   return { idx, delays: merged };
 }
 
-// gif delay is 1/100s, carry rounding so it won't drift
+// gif delay is in 1/100s. carry the leftover or it drifts
 function toCentiseconds(delays) {
   let acc = 0;
   let used = 0;
@@ -170,21 +184,21 @@ async function encodeGifs(cap, keep) {
   const pals = idx.map((i) => cap.palettes[i]);
   const results = await Promise.all(
     cap.panels.map((frames, p) =>
-      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height })
+      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha })
     )
   );
   return { files: results.map((r) => r.bytes), frameCount: idx.length };
 }
 
-export async function exportAnimated(cap, { autoFit, hexify, onStatus }) {
+export async function exportAnimated(cap, { autoFit, hexify, onStatus, limit = STEAM_LIMIT, mb = 5 }) {
   let keep = cap.delays.length;
   let out;
   for (let attempt = 0; attempt < 6; attempt++) {
-    onStatus(attempt === 0 ? t('st.encode', { n: cap.panels.length, f: keep }) : t('st.reencode', { f: keep }));
+    onStatus(attempt === 0 ? t('st.encode', { n: cap.panels.length, f: keep }) : t('st.reencode', { f: keep, mb }));
     out = await encodeGifs(cap, keep);
     const max = Math.max(...out.files.map((f) => f.length));
-    if (!autoFit || max <= STEAM_LIMIT || keep <= 2) break;
-    keep = Math.max(2, Math.floor(keep * (STEAM_LIMIT / max) * 0.92));
+    if (!autoFit || max <= limit || keep <= 2) break;
+    keep = Math.max(2, Math.floor(keep * (limit / max) * 0.92));
   }
   const files = out.files.map((b) => (hexify ? hexifyGif(b) : b));
   return { files, ext: 'gif', mime: 'image/gif', frameCount: out.frameCount, originalFrames: cap.delays.length };
@@ -212,8 +226,10 @@ export async function exportStatic(source, { crop, geo, bg, hexify }) {
   return { files, ext: 'png', mime: 'image/png', frameCount: 1, originalFrames: 1 };
 }
 
-// est: encode cur frame, max bytes/frame across panels
-export async function estimateFrameBytes(drawable, { crop, geo, bg, colors }) {
+// rough est: encode 1 frame, take the biggest panel
+// spinning disc: 0deg compresses way better than the real rotated (blurry) frames,
+// so sample a couple of odd angles and take the worst
+export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, paint, alpha = false, angles = [0] }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -221,14 +237,17 @@ export async function estimateFrameBytes(drawable, { crop, geo, bg, colors }) {
   canvas.height = h;
   const ctx = canvas.getContext('2d', { willReadFrequently: true });
   ctx.imageSmoothingQuality = 'high';
-  ctx.fillStyle = bg;
-  ctx.fillRect(0, 0, w, h);
-  ctx.drawImage(drawable, crop.x, crop.y, crop.w, crop.h, 0, 0, w, h);
-  const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
   const step = Math.max(1, Math.round(Math.sqrt((w * h) / SAMPLE_PIXELS)));
-  const { sizes } = await runOnce(
-    { type: 'estimate', rgba, w, h, step, colors, panels: geo.panels.map((p) => ({ x: p.x, w: p.w })) },
-    [rgba]
-  );
-  return Math.max(...sizes);
+  let worst = 0;
+  for (const angle of angles) {
+    ctx.clearRect(0, 0, w, h);
+    (paint || defaultPaint(crop, bg))(ctx, w, h, drawable, { angle });
+    const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
+    const { sizes } = await runOnce(
+      { type: 'estimate', rgba, w, h, step, colors, alpha, panels: geo.panels.map((p) => ({ x: p.x, w: p.w })) },
+      [rgba]
+    );
+    worst = Math.max(worst, ...sizes);
+  }
+  return worst;
 }

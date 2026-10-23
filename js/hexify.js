@@ -1,6 +1,7 @@
-// tweak a trailing byte so steam doesn't downscale
+// change the last byte so steam doesn't shrink/recompress it
 // gif: 0x3B -> 0x21
-// png: IEND len 1 + 1 extra byte
+// png: IEND len -> 1, add 1 byte
+// everyone does this, steam hasn't broken it (yet)
 
 export function hexifyGif(bytes) {
   const out = bytes.slice();

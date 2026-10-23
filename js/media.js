@@ -1,10 +1,25 @@
-// all srcs: w, h, duration, animated, renderAt(t), iterate(s, e, fps)
+// every src has: w, h, duration, animated, renderAt(t), iterate(s, e, fps)
 import { parseGIF, decompressFrames } from '../vendor/gifuct.esm.js';
 import { t } from './i18n.js';
+const AUDIO_RE = /\.(mp3|flac|m4a|aac|mp4a|alac|ogg|opus|wav)$/i;
 
 export async function loadSource(file) {
   const type = file.type || '';
   const name = file.name.toLowerCase();
+  if (type.startsWith('audio/') || AUDIO_RE.test(name)) {
+    let c;
+    try {
+      const { extractCover } = await import('./cover.js');
+      c = await extractCover(file);
+    } catch (e) {
+      throw new Error(t(e.message === 'nocover' ? 'err.noCover' : 'err.audioFmt'));
+    }
+    const src = new ImageSource();
+    await src.load(c.blob);
+    src.kind = 'audio';
+    src.audio = { title: c.title, artist: c.artist };
+    return src;
+  }
   if (type === 'image/gif' || name.endsWith('.gif')) {
     const src = new GifSource();
     await src.load(file);
@@ -37,7 +52,7 @@ class VideoSource {
     v.crossOrigin = 'anonymous';
     this.url = URL.createObjectURL(file);
     v.src = this.url;
-    // iphone hevc may hang / load audio only
+    // iphone hevc sometimes hangs or gives audio only, hence timeout
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(t('err.video'))), 15000);
       v.onloadeddata = () => {
@@ -67,8 +82,8 @@ class VideoSource {
         resolve();
       };
       v.addEventListener('seeked', finish);
-      setTimeout(finish, 4000); // seeked sometimes never fires
-      // same t won't fire seeked
+      setTimeout(finish, 4000); // seeked just never fires sometimes
+      // same t = no seeked event
       v.currentTime = Math.abs(v.currentTime - t) < 1e-4 ? t + 1e-3 : t;
     });
   }
@@ -115,7 +130,7 @@ class GifSource {
     this.width = gif.lsd.width;
     this.height = gif.lsd.height;
     this.frames = frames;
-    // browsers treat <20ms as 100ms
+    // browsers play <20ms delay as 100ms, match that
     this.delays = frames.map((f) => (f.delay && f.delay >= 20 ? f.delay : 100));
     this.starts = [];
     let acc = 0;
@@ -221,12 +236,14 @@ class ImageSource {
   async load(file) {
     this.url = URL.createObjectURL(file);
     const img = new Image();
+    const loaded = new Promise((ok) => {
+      img.onload = () => ok(true);
+      img.onerror = () => ok(false);
+    });
     img.src = this.url;
-    try {
-      await img.decode();
-    } catch (e) {
-      throw new Error(t('err.image'));
-    }
+    // decode() fails on huge imgs (9000px) even tho onload works
+    const ok = await img.decode().then(() => true, () => loaded);
+    if (!ok || !img.naturalWidth) throw new Error(t('err.image'));
     this.img = img;
     this.width = img.naturalWidth;
     this.height = img.naturalHeight;
@@ -243,98 +260,4 @@ class ImageSource {
   dispose() {
     URL.revokeObjectURL(this.url);
   }
-}
-
-/* demo */
-export function drawDemo(ctx, w, h, time) {
-  const p = (time % 4) / 4; // 4s loop
-  const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, '#0b1026');
-  g.addColorStop(0.55, '#1b1f4b');
-  g.addColorStop(1, '#3a1d4f');
-  ctx.fillStyle = g;
-  ctx.fillRect(0, 0, w, h);
-
-  for (let i = 0; i < 70; i++) {
-    const x = ((i * 0.381966) % 1) * w;
-    const y = (((i * 37) % 100) / 100) * h * 0.7;
-    const tw = 0.5 + 0.5 * Math.sin(p * Math.PI * 4 + i);
-    ctx.fillStyle = `rgba(255,255,255,${0.25 + tw * 0.6})`;
-    ctx.fillRect(x, y, 2, 2);
-  }
-
-  ctx.globalCompositeOperation = 'lighter';
-  const bands = [
-    ['rgba(90,200,255,0.35)', 0.32, 0],
-    ['rgba(140,110,255,0.32)', 0.42, 1.7],
-    ['rgba(80,255,190,0.22)', 0.5, 3.1],
-  ];
-  for (const [color, base, off] of bands) {
-    ctx.beginPath();
-    ctx.moveTo(0, h);
-    for (let x = 0; x <= w; x += 8) {
-      const y = h * base + Math.sin(x / w * Math.PI * 3 + p * Math.PI * 2 + off) * h * 0.06 + Math.sin(x / w * Math.PI * 7 - p * Math.PI * 4 + off) * h * 0.02;
-      ctx.lineTo(x, y);
-    }
-    ctx.lineTo(w, h);
-    ctx.closePath();
-    const bg = ctx.createLinearGradient(0, h * (base - 0.1), 0, h);
-    bg.addColorStop(0, color);
-    bg.addColorStop(0.6, 'rgba(0,0,0,0)');
-    ctx.fillStyle = bg;
-    ctx.fill();
-  }
-
-  for (let i = 0; i < 24; i++) {
-    const sp = (p + i / 24) % 1;
-    const x = w * ((i * 0.618) % 1) + Math.sin(sp * Math.PI * 4 + i) * 12;
-    const y = h * (1.05 - sp * 1.1);
-    const r = 2 + (i % 4);
-    const glow = ctx.createRadialGradient(x, y, 0, x, y, r * 4);
-    glow.addColorStop(0, 'rgba(255,220,160,0.9)');
-    glow.addColorStop(1, 'rgba(255,220,160,0)');
-    ctx.fillStyle = glow;
-    ctx.beginPath();
-    ctx.arc(x, y, r * 4, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  ctx.globalCompositeOperation = 'source-over';
-
-  ctx.fillStyle = '#070914';
-  ctx.beginPath();
-  ctx.moveTo(0, h);
-  for (let x = 0; x <= w; x += 10) {
-    ctx.lineTo(x, h * 0.82 - Math.abs(Math.sin(x / w * Math.PI * 2.3)) * h * 0.12 - Math.sin(x / w * 17) * h * 0.012);
-  }
-  ctx.lineTo(w, h);
-  ctx.fill();
-}
-
-export class DemoSource {
-  constructor() {
-    this.kind = 'demo';
-    this.animated = true;
-    this.width = 960;
-    this.height = 960;
-    this.duration = 4;
-    this.canvas = document.createElement('canvas');
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
-    this.ctx = this.canvas.getContext('2d');
-  }
-
-  async renderAt(time) {
-    drawDemo(this.ctx, this.width, this.height, time);
-    return this.canvas;
-  }
-
-  async *iterate(start, end, fps) {
-    const n = Math.max(1, Math.round((end - start) * fps));
-    for (let i = 0; i < n; i++) {
-      drawDemo(this.ctx, this.width, this.height, start + i / fps);
-      yield { drawable: this.canvas, delay: 1000 / fps };
-    }
-  }
-
-  dispose() {}
 }

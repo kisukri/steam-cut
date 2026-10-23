@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Steam 展柜切图</title>
+  <title>Steam 美化工具</title>
   <meta name="description" content="Split videos, GIFs and images into Steam Workshop / Artwork showcase files in your browser. 動画や GIF を Steam ショーケース用に分割。视频 / GIF 一键切成 Steam 展柜。">
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='1' y2='1'%3E%3Cstop offset='0' stop-color='%237aa7ff'/%3E%3Cstop offset='1' stop-color='%23a68bff'/%3E%3C/linearGradient%3E%3C/defs%3E%3Crect width='32' height='32' rx='9' fill='%230d1118'/%3E%3Cg fill='url(%23g)'%3E%3Crect x='5' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='10.2' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='15.4' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='20.6' y='8' width='3.6' height='16' rx='1.2'/%3E%3Crect x='25.8' y='8' width='1.4' height='16' rx='.7'/%3E%3C/g%3E%3C/svg%3E">
   <link rel="stylesheet" href="css/style.css">
@@ -31,7 +31,7 @@
       <section class="step wrap">
         <div class="step-head"><h2 data-i18n="s1.title"></h2><button type="button" class="pill small" id="demoToggle" aria-expanded="false" aria-controls="demoBox"></button><button type="button" class="pill small clear-btn" id="clearBtn" data-i18n="s1.clear" hidden></button></div>
         <label class="drop" id="drop">
-          <input type="file" id="file" accept="video/*,image/gif,image/png,image/jpeg,image/webp" hidden>
+          <input type="file" id="file" accept="video/*,image/gif,image/png,image/jpeg,image/webp,audio/*,.mp3,.flac,.m4a" hidden>
           <span class="drop-icon" aria-hidden="true"></span>
           <strong data-i18n="s1.drop"></strong>
           <span class="drop-sub" id="fileInfo" data-i18n="s1.sub"></span>
@@ -59,7 +59,42 @@
 
         <div class="seg" id="layouts" role="tablist"></div>
         <p class="layout-desc" id="layoutDesc"></p>
+        <div class="guide-opts" id="guideOpts" hidden>
+          <div class="g-row">
+            <span class="meta" data-i18n="g.style"></span>
+            <div class="seg small" id="gStyle">
+              <button type="button" class="seg-btn" data-v="vinyl" data-i18n="g.vinyl"></button>
+              <button type="button" class="seg-btn" data-v="cd" data-i18n="g.cd"></button>
+              <button type="button" class="seg-btn" data-v="plain" data-i18n="g.plain"></button>
+              <button type="button" class="seg-btn" data-v="square" data-i18n="g.square"></button>
+            </div>
+          </div>
+          <label class="field-inline" id="gEdgeRow"><span data-i18n="g.edge"></span>
+            <input type="range" id="gEdge" min="5" max="80" step="1" value="44">
+            <span class="meta" id="gEdgeVal">44%</span>
+          </label>
+          <label class="switch-row" id="gHoleRow"><input type="checkbox" class="switch" id="gHole" checked><span data-i18n="g.hole"></span></label>
+          <label class="switch-row"><input type="checkbox" class="switch" id="gSpin" checked><span data-i18n="g.spinOn"></span></label>
+          <label class="field-inline" id="gPeriodRow"><span data-i18n="g.period"></span>
+            <select id="gPeriod">
+              <option value="2" data-i18n="g.sec" data-i18n-vars='{"n":2}'></option>
+              <option value="3" data-i18n="g.sec" data-i18n-vars='{"n":3}'></option>
+              <option value="4" data-i18n="g.sec" data-i18n-vars='{"n":4}' selected></option>
+              <option value="6" data-i18n="g.sec" data-i18n-vars='{"n":6}'></option>
+              <option value="8" data-i18n="g.sec" data-i18n-vars='{"n":8}'></option>
+            </select>
+          </label>
+          <label class="field-inline" id="gDirRow"><span data-i18n="g.dir"></span>
+            <select id="gDir">
+              <option value="1" data-i18n="g.cw"></option>
+              <option value="-1" data-i18n="g.ccw"></option>
+            </select>
+          </label>
+          <label class="switch-row"><input type="checkbox" class="switch" id="gTransparent" checked><span id="gTLabel"></span><em id="gTEm"></em></label>
+        </div>
 
+        <div class="work" id="work">
+        <div class="work-crop">
         <div class="stage-wrap">
           <div class="stage" id="stage">
             <canvas id="stageCanvas"></canvas>
@@ -78,13 +113,15 @@
             <button type="button" class="pill small" data-r="1" data-i18n="preset.square"></button>
             <button type="button" class="pill small" data-r="1.6" data-i18n="preset.tall"></button>
           </div>
+          <button type="button" class="pill" id="undoBtn" data-i18n="s2.undo" data-i18n-title="s2.undoKey"></button>
+          <button type="button" class="pill" id="redoBtn" data-i18n="s2.redo"></button>
           <button type="button" class="pill" id="fitAll" data-i18n="s2.fitAll"></button>
           <button type="button" class="pill" id="fitWidth" data-i18n="s2.fitWidth"></button>
           <label class="switch-row"><input type="checkbox" class="switch" id="lockRatio"><span data-i18n="s2.lock"></span></label>
         </div>
         <p class="legend">
           <span><i class="key key-box"></i><span data-i18n="legend.box"></span></span>
-          <span><i class="key key-gap"></i><span data-i18n="legend.gap"></span></span>
+          <span id="legendGap"><i class="key key-gap"></i><span data-i18n="legend.gap"></span></span>
           <span class="meta" id="cropInfo"></span>
         </p>
 
@@ -97,13 +134,66 @@
           </div>
           <input type="range" id="scrub" min="0" max="1000" value="0" class="scrub" aria-label="preview position">
         </div>
+        </div>
 
+        <div class="work-preview">
         <p class="label" data-i18n="s2.preview"></p>
         <div class="preview-box profile-bg">
-          <div class="showcase-mock">
+          <div class="showcase-mock" id="stripMock">
             <div class="mock-head" id="previewHead"></div>
             <canvas id="previewCanvas"></canvas>
           </div>
+          <div class="guide-mock" id="guideMock" hidden>
+            <div class="gm-head" data-i18n="sc.favGuide"></div>
+            <div class="gm-block">
+              <div class="gm-bg"><div class="gm-item">
+                <canvas id="guideCanvas" class="gm-img"></canvas>
+                <div class="gm-details">
+                  <div class="gm-title" id="scTitle"></div>
+                  <div class="gm-by"><span data-i18n="sc.by"></span> <span class="gm-name" data-i18n="sc.you"></span></div>
+                  <div class="gm-app"><span class="gm-stars">☆☆☆☆☆ <span data-i18n="sc.ratings"></span></span></div>
+                  <div class="gm-desc" id="scDesc"></div>
+                </div>
+              </div></div>
+            </div>
+          </div>
+        </div>
+        <p class="gm-note" id="gmNote" data-i18n-html="sc.note" hidden></p>
+        <div class="toolbar" id="spinRow" hidden>
+          <button type="button" class="pill solid" id="spinBtn"></button>
+        </div>
+        <div class="player-ctl" id="playerCtl" hidden>
+          <div class="toolbar">
+            <span class="meta" data-i18n="p.pos"></span>
+            <input type="text" id="pPos" class="p-time" inputmode="numeric" placeholder="4:03">
+            <input type="range" id="pRange" class="p-range" min="0" max="326" step="1" aria-label="position">
+            <button type="button" class="copy" id="pCopyTitle" data-i18n="p.copyTitle"></button>
+            <button type="button" class="copy" id="pCopyDesc" data-i18n="p.copyDesc"></button>
+          </div>
+          <details class="adv">
+            <summary data-i18n="p.more"></summary>
+            <div class="adv-body">
+              <div class="fields">
+                <label class="field"><span data-i18n="p.song"></span><input type="text" id="pTitle"></label>
+                <label class="field"><span data-i18n="p.artist"></span><input type="text" id="pArtist"></label>
+                <label class="field"><span data-i18n="p.total"></span><input type="text" id="pTotal" inputmode="numeric" placeholder="5:26"></label>
+                <label class="field"><span data-i18n="p.len"></span>
+                  <span class="p-len"><input type="range" id="pLen" min="15" max="70" step="1"><span class="meta" id="pLenVal"></span></span>
+                </label>
+                <label class="field"><span data-i18n="p.dot"></span><select id="pDot"></select></label>
+                <label class="field"><span data-i18n="p.state"></span>
+                  <select id="pState">
+                    <option value="playing" data-i18n="p.playing"></option>
+                    <option value="paused" data-i18n="p.paused"></option>
+                  </select>
+                </label>
+              </div>
+              <p class="meta" data-i18n="p.where"></p>
+              <p class="meta" data-i18n="p.note"></p>
+            </div>
+          </details>
+        </div>
+        </div>
         </div>
       </section>
 
@@ -157,6 +247,7 @@
               <label class="switch-row"><input type="checkbox" class="switch" id="hexify" checked><span data-i18n="f.hexify"></span><em data-i18n="f.hexify.em"></em></label>
             </div>
             <p class="meta" data-i18n="f.gapNote"></p>
+            <p class="meta"><span data-i18n="f.saved"></span> <button type="button" class="pill small" id="resetPrefs" data-i18n="f.reset"></button></p>
           </div>
         </details>
 
@@ -190,6 +281,8 @@
         <p class="pc-note" data-i18n-html="s4.pc"></p>
         <div id="uploadGuide"></div>
       </section>
+
+
     </div>
 
     <section class="step wrap" id="codes">
@@ -219,7 +312,6 @@
     <span data-i18n="foot.note"></span>
   </footer>
 
-  <script src="vendor/jszip.min.js"></script>
   <script type="module" src="js/app.js"></script>
 </body>
 </html>

@@ -87,7 +87,7 @@ export default {
   'preset.tall': '竖长',
   'est.calc': '估算大小中…',
   'est.size': '预计每个文件约 {size}',
-  'est.over': '超过 {mb}MB，生成时会自动减到约 {n} 帧（约 {fps} 帧/秒）',
+  'est.over': '可能超过 {mb}MB，生成时会按需减到约 {n} 帧（约 {fps} 帧/秒）',
   'est.overOff': '超过 {mb}MB，Steam 会拒绝上传',
   'res.copyCode': '复制代码',
   'codes.more': '全部展柜代码',

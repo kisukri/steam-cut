@@ -87,7 +87,7 @@ export default {
   'preset.tall': '縦長',
   'est.calc': 'サイズを計算中…',
   'est.size': '1 ファイル約 {size}',
-  'est.over': '{mb}MB 超過、生成時に約 {n} フレーム（約 {fps} fps）に自動削減',
+  'est.over': '{mb}MB を超えるかもしれません。必要なら約 {n} フレーム（約 {fps} fps）に自動削減',
   'est.overOff': '{mb}MB 超過、Steam にアップロードできません',
   'res.copyCode': 'コードをコピー',
   'codes.more': 'すべてのショーケース用コード',

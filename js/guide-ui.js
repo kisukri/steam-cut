@@ -89,7 +89,9 @@ export function drawGuidePreview(drawable) {
   const S = GUIDE_CSS;
   const dpr = window.devicePixelRatio || 1;
   const canvas = $('guideCanvas');
-  canvas.width = canvas.height = Math.round(S * dpr);
+  const px = Math.round(S * dpr);
+  // resizing clears + reallocs the canvas, only do it when the size really changes
+  if (canvas.width !== px) canvas.width = canvas.height = px;
   paintDisc(canvas.getContext('2d'), canvas.width, drawable, state.crop, state.spin.angle, guideOpts());
 }
 

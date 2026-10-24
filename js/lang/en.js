@@ -87,7 +87,7 @@ export default {
   'preset.tall': 'Tall',
   'est.calc': 'Estimating size…',
   'est.size': 'About {size} per file',
-  'est.over': 'Over {mb}MB, will be reduced to about {n} frames (≈ {fps} fps)',
+  'est.over': 'May go over {mb}MB, will reduce to about {n} frames if needed (≈ {fps} fps)',
   'est.overOff': 'Over {mb}MB, Steam will reject it',
   'res.copyCode': 'Copy code',
   'codes.more': 'All showcase codes',

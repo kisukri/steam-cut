@@ -84,7 +84,7 @@ function defaultPaint(crop, bg) {
 }
 
 // guide disc passes its own frames/paint, everyone else uses plain crop
-export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false }) {
+export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false, fixedPalette = false }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -103,6 +103,7 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
   const live = new Set();
   const delays = [];
   let done = 0;
+  let shared = null;
 
   try {
     for await (const f of frames || source.iterate(start, end, fps)) {
@@ -110,11 +111,13 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
       const { drawable, delay } = f;
       draw(ctx, w, h, drawable, f);
       const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
-      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo }, [rgba]).then((r) => {
+      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo, palette: shared }, [rgba]).then((r) => {
         done++;
         if (onProgress) onProgress(done, expected);
         return r;
       });
+      // fixed palette: take it from frame 1, wait for it before queueing the rest
+      if (fixedPalette && !shared) shared = (await job).palette;
       jobs.push(job);
       live.add(job);
       job.then(() => live.delete(job), () => live.delete(job));
@@ -131,6 +134,7 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
       widths: geo.panels.map((p) => p.w),
       height: h,
       alpha,
+      shared: !!shared,
     };
   } finally {
     pool.close();
@@ -184,7 +188,7 @@ async function encodeGifs(cap, keep) {
   const pals = idx.map((i) => cap.palettes[i]);
   const results = await Promise.all(
     cap.panels.map((frames, p) =>
-      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha })
+      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha, shared: cap.shared })
     )
   );
   return { files: results.map((r) => r.bytes), frameCount: idx.length };
@@ -229,7 +233,7 @@ export async function exportStatic(source, { crop, geo, bg, hexify }) {
 // rough est: encode 1 frame, take the biggest panel
 // spinning disc: 0deg compresses way better than the real rotated (blurry) frames,
 // so sample a couple of odd angles and take the worst
-export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, paint, alpha = false, angles = [0] }) {
+export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, paint, alpha = false, angles = [0], shared = false }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -244,7 +248,7 @@ export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, pain
     (paint || defaultPaint(crop, bg))(ctx, w, h, drawable, { angle });
     const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
     const { sizes } = await runOnce(
-      { type: 'estimate', rgba, w, h, step, colors, alpha, panels: geo.panels.map((p) => ({ x: p.x, w: p.w })) },
+      { type: 'estimate', rgba, w, h, step, colors, alpha, shared, panels: geo.panels.map((p) => ({ x: p.x, w: p.w })) },
       [rgba]
     );
     worst = Math.max(worst, ...sizes);

@@ -30,8 +30,8 @@ Steam プロフィールのショーケース素材を作るフロントエン�
 
 - **分割**：Steam の実際の表示幅で範囲を分け、枠の隙間にあたるピクセルは捨てるので、つなぎ目がずれません
 - **フレーム取得**：動画は `<video>` で 1 コマずつ seek して Canvas に描画、GIF は gifuct-js で各コマをデコードして合成
-- **パレット**：各コマで帯全体をまとめて 256 色に減色してから分割するので、つなぎ目の色が揃います。コマは 1 ピクセル 1 バイトのインデックスで保持し、メモリは RGBA の約 1/4
-- **上限に収める**（ショーケース 5MB、ガイド画像 2MB）：1 コマのサイズを見積もり、超えるなら均等にコマを間引いて遅延を延ばし、全体の長さは変えません。GIF の遅延は 1/100 秒単位なので、丸め誤差は次のコマへ繰り越します
+- **パレット**：各コマで帯全体をまとめて 256 色に減色してから分割するので、つなぎ目の色が揃います。コマは 1 ピクセル 1 バイトのインデックスで保持し、メモリは RGBA の約 1/4。静止画の回るレコードは全コマで同じパレットと同じ透明部分を使い、ちらつきを防ぎます
+- **上限に収める**（ショーケース 5MB、ガイド画像 2MB）：1 コマのサイズを見積もり、超えるなら均等にコマを間引いて遅延を延ばし、全体の長さは変えません。GIF の遅延は 1/100 秒単位なので、丸め誤差は次のコマへ繰り越します。静止画の回るレコードはコマを間引かず、少ない等間隔のコマで描き直すので、回転が滑らかなままです
 - **Hex 編集**：GIF の最後のバイト `0x3B` を `0x21` に変えると、Steam が再圧縮しなくなります
 - **アップロード用コード**：Steam のアップロードページのコンソールで `$J` を使って隠しフォームの値を変え（例：`image_width` を 1000、`image_height` を 1）、もう一度読んで反映を確認します
 - **回るレコード**：Canvas でコマごとにジャケットを回転させ、その上に動かない反射を描きます。円の外と中央の穴は透明（不透明なピクセルだけを減色し、透明用にインデックスを 1 つ確保）
@@ -70,13 +70,14 @@ js/prefs.js            設定の保存
 vendor/                gifenc、gifuct-js、JSZip（MIT）
 ```
 
-## 参考
+## 参考と謝辞
 
-[ayricky/steam-workshop-splitter](https://github.com/ayricky/steam-workshop-splitter)、
-[james-ccg/steam-artwork-cropper](https://github.com/james-ccg/steam-artwork-cropper)、
-[Fameboyq/steam-artwork-cropper](https://github.com/Fameboyq/steam-artwork-cropper)、
-[XTsat/SteamGuide](https://github.com/XTsat/SteamGuide)、
-[lannahirave/steam-artwork-simplifier](https://github.com/lannahirave/steam-artwork-simplifier)、
-[sapic（steam.design）](https://github.com/sapic/sapic)
+他のプロジェクトのコードはコピーしていません。参照した資料：
+
+- サイズとアップロード用コード：[ayricky](https://github.com/ayricky/steam-workshop-splitter)、[james-ccg](https://github.com/james-ccg/steam-artwork-cropper)、[Fameboyq](https://github.com/Fameboyq/steam-artwork-cropper)、[Dxrmy](https://github.com/Dxrmy/steam-long-artwork-uploader)、[lannahirave](https://github.com/lannahirave/steam-artwork-simplifier)、[XTsat](https://github.com/XTsat/SteamGuide)、[sapic（steam.design）](https://github.com/sapic/sapic)
+- アップロード手順：Steam ガイド [748624905](https://steamcommunity.com/sharedfiles/filedetails/?id=748624905)、[1655670004](https://steamcommunity.com/sharedfiles/filedetails/?id=1655670004)、[1717371438](https://steamcommunity.com/sharedfiles/filedetails/?id=1717371438)、[1128250496](https://steamcommunity.com/sharedfiles/filedetails/?id=1128250496)、[1672930440](https://steamcommunity.com/sharedfiles/filedetails/?id=1672930440)、[博客園](https://www.cnblogs.com/wayne-tao/p/12128444.html)、[知乎](https://zhuanlan.zhihu.com/p/151876875)
+- レコードとプレイヤーテキストの着想：[知乎](https://zhuanlan.zhihu.com/p/661352634)、[3楼猫](https://game.3loumao.org/168943064)
+- プレビューの見た目：Steam profilev2.css（[SteamTracking](https://github.com/SteamTracking/SteamTracking)）、公開プロフィールページ（[AnalisisRedes](https://github.com/PabloNietoLopez/AnalisisRedes)）
+- ライブラリ：[gifenc](https://github.com/mattdesl/gifenc)、[gifuct-js](https://github.com/matt-way/gifuct-js)、[JSZip](https://github.com/Stuk/jszip)
 
 © 2026 キスクリ · [MIT](LICENSE) · コミュニティの非営利プロジェクトで、Valve / Steam とは関係ありません

@@ -30,8 +30,8 @@ A front-end-only tool for Steam profile showcase assets. Everything runs locally
 
 - **Slicing**: the crop is split by Steam's real display widths; pixels that fall in the gaps are dropped so the slots line up
 - **Frames**: video is seeked frame by frame with `<video>` and drawn to a Canvas; GIF frames are decoded with gifuct-js and composited
-- **Palette**: each frame's whole strip is quantized into one 256-color palette before slicing, so colors match at the seams; frames are kept as 1 byte/px indices, about 1/4 the memory of RGBA
-- **Fitting the limit** (5MB showcases, 2MB guide images): per-frame size is estimated; if it's over, frames are dropped evenly and delays lengthened so total time stays the same. GIF delays are in 1/100s, and rounding error is carried forward
+- **Palette**: each frame's whole strip is quantized into one 256-color palette before slicing, so colors match at the seams; frames are kept as 1 byte/px indices, about 1/4 the memory of RGBA. A spinning disc from a still image uses one palette and the exact same transparent area in every frame, so it doesn't flicker
+- **Fitting the limit** (5MB showcases, 2MB guide images): per-frame size is estimated; if it's over, frames are dropped evenly and delays lengthened so total time stays the same. GIF delays are in 1/100s, and rounding error is carried forward. A spinning disc from a still image isn't thinned out; it's re-rendered with fewer, evenly spaced frames so the spin stays smooth
 - **Hex edit**: the GIF's last byte `0x3B` becomes `0x21`, so Steam doesn't recompress it
 - **Upload codes**: in the Steam upload page console, `$J` sets hidden form fields (e.g. `image_width` 1000, `image_height` 1), then reads them back to confirm
 - **Spinning disc**: each frame rotates the cover on a Canvas, then draws a fixed glare on top. Outside the circle and the center hole are transparent (only opaque pixels are quantized, one index is reserved for transparency)
@@ -70,13 +70,14 @@ js/prefs.js            settings
 vendor/                gifenc, gifuct-js, JSZip (MIT)
 ```
 
-## References
+## References and credits
 
-[ayricky/steam-workshop-splitter](https://github.com/ayricky/steam-workshop-splitter),
-[james-ccg/steam-artwork-cropper](https://github.com/james-ccg/steam-artwork-cropper),
-[Fameboyq/steam-artwork-cropper](https://github.com/Fameboyq/steam-artwork-cropper),
-[XTsat/SteamGuide](https://github.com/XTsat/SteamGuide),
-[lannahirave/steam-artwork-simplifier](https://github.com/lannahirave/steam-artwork-simplifier),
-[sapic (steam.design)](https://github.com/sapic/sapic)
+No code was copied from other projects. Sources consulted:
+
+- Sizes and upload codes: [ayricky](https://github.com/ayricky/steam-workshop-splitter), [james-ccg](https://github.com/james-ccg/steam-artwork-cropper), [Fameboyq](https://github.com/Fameboyq/steam-artwork-cropper), [Dxrmy](https://github.com/Dxrmy/steam-long-artwork-uploader), [lannahirave](https://github.com/lannahirave/steam-artwork-simplifier), [XTsat](https://github.com/XTsat/SteamGuide), [sapic (steam.design)](https://github.com/sapic/sapic)
+- Upload guides: Steam guides [748624905](https://steamcommunity.com/sharedfiles/filedetails/?id=748624905), [1655670004](https://steamcommunity.com/sharedfiles/filedetails/?id=1655670004), [1717371438](https://steamcommunity.com/sharedfiles/filedetails/?id=1717371438), [1128250496](https://steamcommunity.com/sharedfiles/filedetails/?id=1128250496), [1672930440](https://steamcommunity.com/sharedfiles/filedetails/?id=1672930440), [cnblogs](https://www.cnblogs.com/wayne-tao/p/12128444.html), [Zhihu](https://zhuanlan.zhihu.com/p/151876875)
+- Disc and player text idea: [Zhihu](https://zhuanlan.zhihu.com/p/661352634), [3loumao](https://game.3loumao.org/168943064)
+- Preview styling: Steam profilev2.css ([SteamTracking](https://github.com/SteamTracking/SteamTracking)), public profile pages ([AnalisisRedes](https://github.com/PabloNietoLopez/AnalisisRedes))
+- Libraries: [gifenc](https://github.com/mattdesl/gifenc), [gifuct-js](https://github.com/matt-way/gifuct-js), [JSZip](https://github.com/Stuk/jszip)
 
 © 2026 キスクリ · [MIT](LICENSE) · Community project, not affiliated with Valve / Steam

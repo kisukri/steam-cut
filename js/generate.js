@@ -1,7 +1,7 @@
 // step 3: settings, size guess, the go btn
 import { captureFrames, estimateFrameBytes, exportAnimated, exportStatic, frameCap, limitMB, sizeLimit } from './export.js';
-import { guideFrameOpts, guideOpts, guidePaint, guidePlan, outSeconds, stopSpin } from './guide-ui.js';
-import { discFrames } from './guide.js';
+import { guideFrameOpts, guideOpts, guidePaint, guidePlan, outSeconds, spinOn, stopSpin } from './guide-ui.js';
+import { discFrames, evenFrameCounts } from './guide.js';
 import { t } from './i18n.js';
 import { LAYOUTS, outputGeometry } from './layout.js';
 import { refresh, showAt, stopPlay } from './preview.js';
@@ -110,23 +110,45 @@ export async function generate() {
     let out;
     if (isGuide()) {
       const plan = guidePlan();
-      const cap = await captureFrames(src, {
-        crop: state.crop,
-        geo,
-        colors: Number($('colors').value),
-        maxFrames: frameCap(geo),
-        frames: discFrames(src, guideFrameOpts()),
-        expected: plan.n,
-        paint: guidePaint(),
-        alpha: guideOpts().transparent,
-        isCancelled: () => state.cancelled,
-        onProgress: (i, n) => {
-          setProgress(Math.min(0.7, (i / n) * 0.7));
-          setStatus(t('st.capture', { i, n }));
-        },
-      });
-      setProgress(0.75);
-      out = await exportAnimated(cap, { autoFit: $('autoFit').checked, hexify, onStatus: setStatus, limit: sizeLimit(state.layoutKey), mb: limitMB(state.layoutKey) });
+      const limit = sizeLimit(state.layoutKey);
+      const mb = limitMB(state.layoutKey);
+      const autoFit = $('autoFit').checked;
+      // spinning still img: re-render w/ fewer, evenly spaced frames instead of dropping (dropping = jerky spin)
+      const still = !src.animated && spinOn();
+      const period = state.guide.period;
+      let n = plan.n;
+      for (let tries = 0; ; tries++) {
+        const cap = await captureFrames(src, {
+          crop: state.crop,
+          geo,
+          colors: Number($('colors').value),
+          maxFrames: frameCap(geo),
+          frames: discFrames(src, { ...guideFrameOpts(), n }),
+          expected: n,
+          paint: guidePaint(),
+          alpha: guideOpts().transparent,
+          // still img just rotates, 1 palette for all frames = no color flicker
+          fixedPalette: !src.animated,
+          isCancelled: () => state.cancelled,
+          onProgress: (i, total) => {
+            setProgress(Math.min(0.7, (i / total) * 0.7));
+            setStatus(t('st.capture', { i, n: total }));
+          },
+        });
+        setProgress(0.75);
+        out = await exportAnimated(cap, { autoFit: autoFit && !still, hexify, onStatus: setStatus, limit, mb });
+        if (!still || !autoFit || tries >= 4) break;
+        const max = Math.max(...out.files.map((f) => f.length));
+        if (max <= limit) break;
+        const target = Math.floor(n * (limit / max) * 0.95);
+        // whole-1/100s count if it's close, else keep more frames (angles stay even, timing off by <5ms)
+        const even = evenFrameCounts(period, target)[0];
+        const next = even && even >= target * 0.85 ? even : target;
+        if (next < 8 || next >= n) break;
+        setStatus(t('st.reencode', { f: next, mb }));
+        n = next;
+      }
+      out.originalFrames = plan.n;
     } else if (src.animated) {
       const cap = await captureFrames(src, {
         crop: state.crop,
@@ -201,6 +223,8 @@ export async function runEstimate() {
       paint: isGuide() ? guidePaint() : undefined,
       alpha: isGuide() && guideOpts().transparent,
       angles: isGuide() && guideOpts().spin ? [0.41, 1.13] : [0],
+      // spinning still img uses 1 palette for all frames (see generate)
+      shared: isGuide() && !state.source.animated,
     });
     if (token !== estToken) return;
     const frames = Math.min(frameEstimate(), frameCap(geo));
@@ -210,7 +234,12 @@ export async function runEstimate() {
     if (total <= limit) {
       el.textContent = t('est.size', { size: formatSize(total) });
     } else if ($('autoFit').checked) {
-      const n = Math.max(2, Math.floor(frames * (limit / total) * 0.92));
+      let n = Math.max(2, Math.floor(frames * (limit / total) * 0.92));
+      // spinning still img gets re-rendered w/ an even frame count, show that number
+      if (isGuide() && !state.source.animated && spinOn()) {
+        const even = evenFrameCounts(state.guide.period, n)[0];
+        if (even && even >= n * 0.85) n = even;
+      }
       const dur = Math.max(0.05, outSeconds());
       el.textContent = t('est.over', { n, fps: Math.max(1, Math.round(n / dur)), mb });
       el.className = 'meta est-info warn';

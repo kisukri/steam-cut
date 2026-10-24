@@ -5,7 +5,7 @@
 
 const TAU = Math.PI * 2;
 
-export function discPlan(source, { start, end, fps, period, spin = true }) {
+export function discPlan(source, { start, end, fps, period, spin = true, n: nOverride }) {
   if (!spin) {
     // no spin + still img -> 1 frame, done
     if (!source.animated) return { clip: 0, turns: 0, n: 1 };
@@ -15,8 +15,17 @@ export function discPlan(source, { start, end, fps, period, spin = true }) {
   // anim src: whole turns per clip or the loop jumps
   const clip = source.animated ? Math.max(0.1, end - start) : period;
   const turns = source.animated ? Math.max(1, Math.round(clip / period)) : 1;
-  const n = Math.max(2, Math.round(clip * fps));
+  // still img: caller can ask for fewer frames (to fit 2MB) instead of dropping some
+  const n = !source.animated && nOverride ? nOverride : Math.max(2, Math.round(clip * fps));
   return { clip, turns, n };
+}
+
+// frame counts where every frame gets the same whole 1/100s delay -> even spin, no stutter
+export function evenFrameCounts(period, maxN) {
+  const total = Math.round(period * 100);
+  const out = [];
+  for (let n = Math.floor(maxN); n >= 8; n--) if (total % n === 0 && total / n >= 2) out.push(n);
+  return out;
 }
 
 export async function* discFrames(source, opts) {
@@ -76,11 +85,12 @@ export function paintDisc(ctx, S, drawable, crop, angle, { style, bg, transparen
   ctx.save();
   ctx.rotate(angle);
   ctx.beginPath();
-  ctx.arc(0, 0, R, 0, TAU);
+  // a bit past R: the real edge is cut later by a fixed (unrotated) mask
+  ctx.arc(0, 0, R + 2, 0, TAU);
   ctx.clip();
   if (style === 'vinyl') {
     ctx.fillStyle = '#0c0c0f';
-    ctx.fillRect(-R, -R, R * 2, R * 2);
+    ctx.fillRect(-R - 3, -R - 3, R * 2 + 6, R * 2 + 6);
     ctx.lineWidth = Math.max(1, R / 180);
     let i = 0;
     for (let r = L + R * 0.04; r < R * 0.98; r += R / 40, i++) {
@@ -101,6 +111,10 @@ export function paintDisc(ctx, S, drawable, crop, angle, { style, bg, transparen
     ctx.arc(0, 0, L, 0, TAU);
     ctx.stroke();
   } else {
+    // solid backing so the rotated cover's soft edges never leave see-through px inside the disc
+    // (keeps the transparent area identical every frame -> gif can skip the flashy clear between frames)
+    ctx.fillStyle = '#000';
+    ctx.fillRect(-R - 3, -R - 3, R * 2 + 6, R * 2 + 6);
     ctx.drawImage(drawable, crop.x, crop.y, crop.w, crop.h, -R, -R, R * 2, R * 2);
   }
   ctx.restore();
@@ -152,6 +166,15 @@ export function paintDisc(ctx, S, drawable, crop, angle, { style, bg, transparen
     ctx.arc(0, 0, R - ctx.lineWidth / 2, 0, TAU);
     ctx.stroke();
     if (withHole) hole(ctx, style === 'cd' ? R * 0.075 : R * 0.035, transparent, bg);
+  }
+  if (transparent) {
+    // fixed edge: rotated clip paths rasterize a hair differently each angle, which made edge px
+    // flip between see-through and solid. same mask every frame -> gif can keep frames (no flash)
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.beginPath();
+    ctx.arc(0, 0, R, 0, TAU);
+    ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
   }
   ctx.restore();
 }

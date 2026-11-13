@@ -188,24 +188,70 @@ self.onmessage = (e) => {
           }
         }
       }
-      let shown = null;
-      for (let i = 0; i < d.frames.length; i++) {
+      const HOLD = 3;
+      let near = null;
+      if (delta) {
+        const n = base.length;
+        const d2 = (x, y) => (x[0] - y[0]) ** 2 + (x[1] - y[1]) ** 2 + (x[2] - y[2]) ** 2;
+        const nn = new Float64Array(n).fill(Infinity);
+        for (let a = 0; a < n; a++) for (let b = 0; b < n; b++) if (a !== b) nn[a] = Math.min(nn[a], d2(base[a], base[b]));
+        near = new Uint8Array(n * n);
+        for (let a = 0; a < n; a++) {
+          for (let b = 0; b < n; b++) {
+            const dd = d2(base[a], base[b]);
+            if (dd <= 2.56 * Math.max(nn[a], nn[b]) && dd <= 48 * 48) near[a * n + b] = 1;
+          }
+        }
+      }
+      const N = d.frames.length;
+      const size = delta ? d.frames[0].length : 0;
+      let shown = delta ? new Uint8Array(size) : null;
+      const want = delta ? new Uint8Array(size) : null;
+      const cnt = delta ? new Uint8Array(size) : null;
+      const settle = (frame, out) => {
+        const n = base.length;
+        for (let p = 0; p < size; p++) {
+          const a = frame[p];
+          const b = shown[p];
+          if (a === b || (close && close[a * n + b])) {
+            cnt[p] = 0;
+            if (out) out[p] = keepIdx;
+            continue;
+          }
+          if (near[a * n + b]) {
+            if (want[p] === a) cnt[p]++;
+            else {
+              want[p] = a;
+              cnt[p] = 1;
+            }
+            if (cnt[p] < HOLD) {
+              if (out) out[p] = keepIdx;
+              continue;
+            }
+          }
+          cnt[p] = 0;
+          shown[p] = a;
+          if (out) out[p] = a;
+        }
+      };
+      let frame0 = null;
+      if (delta && N > 1) {
+        shown.set(d.frames[0]);
+        for (let i = 1; i < N; i++) settle(d.frames[i], null);
+        settle(d.frames[0], null);
+        frame0 = shown.slice();
+        cnt.fill(0);
+      }
+      for (let i = 0; i < N; i++) {
         const pal = d.palettes[i];
         const ti = d.alpha ? pal.findIndex((c) => c[3] === 0) : -1;
         let frame = d.frames[i];
-        if (delta && i === 0) shown = frame.slice();
-        else if (delta) {
-          const out = new Uint8Array(frame.length);
-          const n = base.length;
-          for (let p = 0; p < frame.length; p++) {
-            const a = frame[p];
-            const b = shown[p];
-            if (a === b || (close && close[a * n + b])) out[p] = keepIdx;
-            else {
-              out[p] = a;
-              shown[p] = a;
-            }
-          }
+        if (delta && i === 0) {
+          if (frame0) frame = frame0;
+          shown.set(frame);
+        } else if (delta) {
+          const out = new Uint8Array(size);
+          settle(frame, out);
           frame = out;
         }
         gif.writeFrame(frame, d.width, d.height, {

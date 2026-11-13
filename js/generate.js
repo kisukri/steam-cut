@@ -1,5 +1,4 @@
-// step 3: settings, size guess, the go btn
-import { captureFrames, estimateFrameBytes, exportAnimated, exportStatic, frameCap, limitMB, sizeLimit } from './export.js';
+import { captureFrames, estimateFrameBytes, evenPlan, exportAnimated, exportStatic, frameCap, limitMB, sizeLimit } from './export.js';
 import { guideFrameOpts, guideOpts, guidePaint, guidePlan, outSeconds, spinOn, stopSpin } from './guide-ui.js';
 import { discFrames, evenFrameCounts } from './guide.js';
 import { t } from './i18n.js';
@@ -23,7 +22,7 @@ export function bindOutput() {
 
 export function currentFps() {
   const fps = Number($('fps').value);
-  if (state.source.kind === 'gif') return fps; // 0 = keep gif's own fps
+  if (state.source.kind === 'gif') return fps;
   return fps || 15;
 }
 
@@ -57,7 +56,6 @@ export function updateOutInfo() {
   $('outInfo').textContent = parts.join(' · ');
 }
 
-// so we can ask "same settings, really regen?"
 export function settingsSignature() {
   const c = state.crop;
   return JSON.stringify({
@@ -113,7 +111,6 @@ export async function generate() {
       const limit = sizeLimit(state.layoutKey);
       const mb = limitMB(state.layoutKey);
       const autoFit = $('autoFit').checked;
-      // spinning still img: re-render w/ fewer, evenly spaced frames instead of dropping (dropping = jerky spin)
       const still = !src.animated && spinOn();
       const period = state.guide.period;
       let n = plan.n;
@@ -127,7 +124,6 @@ export async function generate() {
           expected: n,
           paint: guidePaint(),
           alpha: guideOpts().transparent,
-          // still img just rotates, 1 palette for all frames = no color flicker
           fixedPalette: !src.animated,
           isCancelled: () => state.cancelled,
           onProgress: (i, total) => {
@@ -141,7 +137,6 @@ export async function generate() {
         const max = Math.max(...out.files.map((f) => f.length));
         if (max <= limit) break;
         const target = Math.floor(n * (limit / max) * 0.95);
-        // whole-1/100s count if it's close, else keep more frames (angles stay even, timing off by <5ms)
         const even = evenFrameCounts(period, target)[0];
         const next = even && even >= target * 0.85 ? even : target;
         if (next < 8 || next >= n) break;
@@ -150,23 +145,41 @@ export async function generate() {
       }
       out.originalFrames = plan.n;
     } else if (src.animated) {
-      const cap = await captureFrames(src, {
-        crop: state.crop,
-        geo,
-        start: state.start,
-        end: state.end,
-        fps: currentFps(),
-        bg: $('bg').value,
-        colors: Number($('colors').value),
-        maxFrames: frameCap(geo),
-        isCancelled: () => state.cancelled,
-        onProgress: (i, n) => {
-          setProgress(Math.min(0.7, (i / n) * 0.7));
-          setStatus(t('st.capture', { i, n }));
-        },
-      });
-      setProgress(0.75);
-      out = await exportAnimated(cap, { autoFit: $('autoFit').checked, hexify, onStatus: setStatus, limit: sizeLimit(state.layoutKey), mb: limitMB(state.layoutKey) });
+      const limit = sizeLimit(state.layoutKey);
+      const mb = limitMB(state.layoutKey);
+      const autoFit = $('autoFit').checked;
+      const dur = state.end - state.start;
+      let fps = currentFps();
+      let first = 0;
+      for (let tries = 0; ; tries++) {
+        const cap = await captureFrames(src, {
+          crop: state.crop,
+          geo,
+          start: state.start,
+          end: state.end,
+          fps,
+          bg: $('bg').value,
+          colors: Number($('colors').value),
+          maxFrames: frameCap(geo),
+          isCancelled: () => state.cancelled,
+          onProgress: (i, n) => {
+            setProgress(Math.min(0.7, (i / n) * 0.7));
+            setStatus(t('st.capture', { i, n }));
+          },
+        });
+        setProgress(0.75);
+        const n = cap.delays.length;
+        first = first || n;
+        out = await exportAnimated(cap, { autoFit: autoFit && tries >= 3, hexify, onStatus: setStatus, limit, mb });
+        if (!autoFit || tries >= 3) break;
+        const max = Math.max(...out.files.map((f) => f.length));
+        if (max <= limit || n <= 2) break;
+        const plan = evenPlan(dur, Math.floor(n * (limit / max) * 0.92));
+        if (plan.n >= n) break;
+        setStatus(t('st.reencode', { f: plan.n, mb }));
+        fps = plan.fps;
+      }
+      out.originalFrames = Math.max(first, out.originalFrames);
     } else {
       out = await exportStatic(src, { crop: state.crop, geo, bg: $('bg').value, hexify });
     }
@@ -223,7 +236,6 @@ export async function runEstimate() {
       paint: isGuide() ? guidePaint() : undefined,
       alpha: isGuide() && guideOpts().transparent,
       angles: isGuide() && guideOpts().spin ? [0.41, 1.13] : [0],
-      // spinning still img uses 1 palette for all frames (see generate)
       shared: isGuide() && !state.source.animated,
     });
     if (token !== estToken) return;
@@ -235,7 +247,7 @@ export async function runEstimate() {
       el.textContent = t('est.size', { size: formatSize(total) });
     } else if ($('autoFit').checked) {
       let n = Math.max(2, Math.floor(frames * (limit / total) * 0.92));
-      // spinning still img gets re-rendered w/ an even frame count, show that number
+      if (!isGuide()) n = evenPlan(Math.max(0.05, outSeconds()), n).n;
       if (isGuide() && !state.source.animated && spinOn()) {
         const even = evenFrameCounts(state.guide.period, n)[0];
         if (even && even >= n * 0.85) n = even;

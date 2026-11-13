@@ -1,10 +1,7 @@
-// flow: grab frames -> idx in worker -> gif, shrink till under the limit (5MB, guide 2MB) -> hexify
-// keep frames as 1 byte/px idx not rgba, 4x less mem. long vids blew up before
 import { hexifyGif, hexifyPng } from './hexify.js';
 import { t } from './i18n.js';
 
 export const STEAM_LIMIT = 5 * 1024 * 1024;
-// guide img caps at 2MB on steam. stay a bit under in case they mean 2,000,000
 export const GUIDE_LIMIT = 2000000;
 export const sizeLimit = (key) => (key === 'guide' ? GUIDE_LIMIT : STEAM_LIMIT);
 export const limitMB = (key) => (key === 'guide' ? 2 : 5);
@@ -83,7 +80,6 @@ function defaultPaint(crop, bg) {
   };
 }
 
-// guide disc passes its own frames/paint, everyone else uses plain crop
 export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false, fixedPalette = false }) {
   const w = geo.stripW;
   const h = geo.stripH;
@@ -116,13 +112,11 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
         if (onProgress) onProgress(done, expected);
         return r;
       });
-      // fixed palette: take it from frame 1, wait for it before queueing the rest
       if (fixedPalette && !shared) shared = (await job).palette;
       jobs.push(job);
       live.add(job);
       job.then(() => live.delete(job), () => live.delete(job));
       delays.push(delay);
-      // don't queue too many or mem spikes
       while (live.size > POOL * 3) await Promise.race(live);
       if (delays.length >= maxFrames) break;
     }
@@ -154,7 +148,11 @@ function estimateFrames(source, start, end, fps) {
   return 1;
 }
 
-// drop frames evenly, total time stays the same
+export function evenPlan(duration, targetFrames) {
+  const cs = Math.max(2, Math.ceil((duration * 100) / Math.max(1, targetFrames)));
+  return { fps: 100 / cs, n: Math.max(1, Math.round((duration * 100) / cs)) };
+}
+
 function pickFrames(delays, keep) {
   const n = delays.length;
   if (keep >= n) return { idx: delays.map((_, i) => i), delays: delays.slice() };
@@ -169,7 +167,6 @@ function pickFrames(delays, keep) {
   return { idx, delays: merged };
 }
 
-// gif delay is in 1/100s. carry the leftover or it drifts
 function toCentiseconds(delays) {
   let acc = 0;
   let used = 0;
@@ -230,9 +227,6 @@ export async function exportStatic(source, { crop, geo, bg, hexify }) {
   return { files, ext: 'png', mime: 'image/png', frameCount: 1, originalFrames: 1 };
 }
 
-// rough est: encode 1 frame, take the biggest panel
-// spinning disc: 0deg compresses way better than the real rotated (blurry) frames,
-// so sample a couple of odd angles and take the worst
 export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, paint, alpha = false, angles = [0], shared = false }) {
   const w = geo.stripW;
   const h = geo.stripH;

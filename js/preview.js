@@ -1,4 +1,3 @@
-// preview + playback
 import { scheduleEstimate, updateOutInfo } from './generate.js';
 import { drawGuidePreview } from './guide-ui.js';
 import { t } from './i18n.js';
@@ -20,7 +19,6 @@ export function drawFrame(drawable) {
   drawPreview(drawable);
 }
 
-// real steam widths, w/ gaps
 export function drawPreview(drawable) {
   if (isGuide()) return drawGuidePreview(drawable);
   const L = layout();
@@ -38,10 +36,14 @@ export function drawPreview(drawable) {
   const canvas = $('previewCanvas');
   const cw = Math.round(shownW * k);
   const ch = Math.max(1, Math.round(shownH * k));
-  canvas.style.width = cw + 'px';
-  canvas.style.height = ch + 'px';
-  canvas.width = Math.round(cw * dpr);
-  canvas.height = Math.round(ch * dpr);
+  const pw = Math.round(cw * dpr);
+  const ph = Math.round(ch * dpr);
+  if (canvas.width !== pw || canvas.height !== ph) {
+    canvas.style.width = cw + 'px';
+    canvas.style.height = ch + 'px';
+    canvas.width = pw;
+    canvas.height = ph;
+  }
   const ctx = canvas.getContext('2d');
   ctx.setTransform(dpr * k, 0, 0, dpr * k, 0, 0);
   ctx.clearRect(0, 0, shownW, shownH);
@@ -74,14 +76,12 @@ export function bindTime() {
     if (e - s < 0.05) e = Math.min(d, s + 0.05);
     if (e - s < 0.05) s = Math.max(0, e - 0.05);
     if (e - s > MAX_CLIP + 0.001) {
-      // keep what they just typed, move the other end
       if (which === 'start') e = s + MAX_CLIP;
       else s = e - MAX_CLIP;
       toast(t('out.maxClip', { n: MAX_CLIP }), 3500);
     }
     state.start = s;
     state.end = e;
-    // put the fixed values back in the boxes
     $('tStart').value = +s.toFixed(2);
     $('tEnd').value = +e.toFixed(2);
     updateOutInfo();

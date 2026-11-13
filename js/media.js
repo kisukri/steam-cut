@@ -1,4 +1,3 @@
-// every src has: w, h, duration, animated, renderAt(t), iterate(s, e, fps)
 import { parseGIF, decompressFrames } from '../vendor/gifuct.esm.js';
 import { t } from './i18n.js';
 const AUDIO_RE = /\.(mp3|flac|m4a|aac|mp4a|alac|ogg|opus|wav)$/i;
@@ -52,7 +51,6 @@ class VideoSource {
     v.crossOrigin = 'anonymous';
     this.url = URL.createObjectURL(file);
     v.src = this.url;
-    // iphone hevc sometimes hangs or gives audio only, hence timeout
     await new Promise((resolve, reject) => {
       const timer = setTimeout(() => reject(new Error(t('err.video'))), 15000);
       v.onloadeddata = () => {
@@ -69,6 +67,43 @@ class VideoSource {
     this.height = v.videoHeight;
     this.duration = v.duration;
     if (!this.width || !this.height) throw new Error(t('err.video'));
+    this.fps = await this.detectFps();
+  }
+
+  detectFps() {
+    const v = this.video;
+    if (!v.requestVideoFrameCallback) return Promise.resolve(0);
+    return new Promise((resolve) => {
+      const times = [];
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
+        v.pause();
+        const gaps = [];
+        for (let i = 1; i < times.length; i++) if (times[i] > times[i - 1]) gaps.push(times[i] - times[i - 1]);
+        gaps.sort((a, b) => a - b);
+        let fps = gaps.length >= 4 ? 1 / gaps[gaps.length >> 1] : 0;
+        for (const c of [23.976, 24, 25, 29.97, 30, 48, 50, 59.94, 60]) if (Math.abs(fps - c) / c < 0.02) fps = c;
+        if (!(fps >= 5 && fps <= 240)) fps = 0;
+        this.seek(0).then(() => resolve(fps));
+      };
+      const tick = (now, meta) => {
+        if (done) return;
+        times.push(meta.mediaTime);
+        if (times.length >= 14) finish();
+        else v.requestVideoFrameCallback(tick);
+      };
+      v.requestVideoFrameCallback(tick);
+      setTimeout(finish, 1200);
+      const pr = v.play();
+      if (pr && pr.catch) pr.catch(finish);
+    });
+  }
+
+  frameTime(t) {
+    if (!this.fps) return t;
+    return (Math.round(t * this.fps) + 0.5) / this.fps;
   }
 
   seek(t) {
@@ -82,8 +117,7 @@ class VideoSource {
         resolve();
       };
       v.addEventListener('seeked', finish);
-      setTimeout(finish, 4000); // seeked just never fires sometimes
-      // same t = no seeked event
+      setTimeout(finish, 4000);
       v.currentTime = Math.abs(v.currentTime - t) < 1e-4 ? t + 1e-3 : t;
     });
   }
@@ -99,7 +133,7 @@ class VideoSource {
     const step = 1 / fps;
     const n = Math.max(1, Math.round((end - start) * fps));
     for (let i = 0; i < n; i++) {
-      const t = Math.min(start + i * step, this.duration - 0.001);
+      const t = Math.min(this.frameTime(start + i * step), this.duration - 0.001);
       await this.seek(t);
       yield { drawable: this.video, delay: 1000 / fps };
     }
@@ -130,7 +164,6 @@ class GifSource {
     this.width = gif.lsd.width;
     this.height = gif.lsd.height;
     this.frames = frames;
-    // browsers play <20ms delay as 100ms, match that
     this.delays = frames.map((f) => (f.delay && f.delay >= 20 ? f.delay : 100));
     this.starts = [];
     let acc = 0;
@@ -241,7 +274,6 @@ class ImageSource {
       img.onerror = () => ok(false);
     });
     img.src = this.url;
-    // decode() fails on huge imgs (9000px) even tho onload works
     const ok = await img.decode().then(() => true, () => loaded);
     if (!ok || !img.naturalWidth) throw new Error(t('err.image'));
     this.img = img;

@@ -29,7 +29,7 @@ A front-end-only tool for Steam profile showcase assets. Everything runs locally
 ## How it works
 
 - **Slicing**: the crop is split by Steam's real display widths; pixels that fall in the gaps are dropped so the slots line up
-- **Frames**: video is seeked frame by frame with `<video>` and drawn to a Canvas; GIF frames are decoded with gifuct-js and composited
+- **Frames**: video is seeked frame by frame with `<video>` and drawn to a Canvas. The source frame rate is measured first and every seek lands in the middle of a source frame, so the neighboring frame is never picked by mistake. A warning shows when the chosen rate doesn't divide the source rate evenly (20 fps from a 30 fps video stutters); GIF frames are decoded with gifuct-js and composited
 - **Palette**: a dozen frames spread across the clip are sampled to build one 256-color palette, used for every frame and every slot, so colors match at the seams and don't flicker from frame to frame. A pixel only switches to a neighboring color band if the change lasts a few frames, which filters out edge shimmer from video noise. Black-and-white clips get a plain gray ramp, so dark gradients don't band. Frames are kept as 1 byte/px indices, about 1/4 the memory of RGBA
 - **Fitting the limit** (5MB showcases, 2MB guide images): each frame stores only the pixels that changed since the previous one, and unchanged areas cost almost nothing, so clips with still areas keep more frames. If it's still over, you choose: keep quality (capture again at a lower, even frame rate) or keep it smooth (fewer colors first, down to 32, then frame rate). A spinning disc is re-rendered with fewer, evenly spaced frames
 - **Hex edit**: the GIF's last byte `0x3B` becomes `0x21`, so Steam doesn't recompress it

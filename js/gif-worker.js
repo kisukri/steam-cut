@@ -188,7 +188,8 @@ self.onmessage = (e) => {
           }
         }
       }
-      const HOLD = 3;
+      const avg = d.delays.reduce((a, b) => a + b, 0) / Math.max(1, d.delays.length);
+      const HOLD = Math.max(2, Math.min(5, Math.round(100 / Math.max(1, avg))));
       let near = null;
       if (delta) {
         const n = base.length;
@@ -208,8 +209,35 @@ self.onmessage = (e) => {
       let shown = delta ? new Uint8Array(size) : null;
       const want = delta ? new Uint8Array(size) : null;
       const cnt = delta ? new Uint8Array(size) : null;
+      const BW = Math.ceil(d.width / 8);
+      const BH = Math.ceil(d.height / 8);
+      const MOVE_MIN = d.moveMin || 6;
+      const far = delta ? new Uint8Array(BW * BH) : null;
+      const moving = delta ? new Uint8Array(BW * BH) : null;
+      const findMotion = (frame) => {
+        const n = base.length;
+        far.fill(0);
+        for (let y = 0, p = 0; y < d.height; y++) {
+          const row = (y >> 3) * BW;
+          for (let x = 0; x < d.width; x++, p++) {
+            const a = frame[p];
+            const b = shown[p];
+            if (a !== b && !near[a * n + b] && far[row + (x >> 3)] < 255) far[row + (x >> 3)]++;
+          }
+        }
+        moving.fill(0);
+        for (let by = 0; by < BH; by++) {
+          for (let bx = 0; bx < BW; bx++) {
+            if (far[by * BW + bx] < MOVE_MIN) continue;
+            for (let yy = Math.max(0, by - 1); yy <= Math.min(BH - 1, by + 1); yy++)
+              for (let xx = Math.max(0, bx - 1); xx <= Math.min(BW - 1, bx + 1); xx++) moving[yy * BW + xx] = 1;
+          }
+        }
+      };
       const settle = (frame, out) => {
         const n = base.length;
+        const W = d.width;
+        findMotion(frame);
         for (let p = 0; p < size; p++) {
           const a = frame[p];
           const b = shown[p];
@@ -218,7 +246,7 @@ self.onmessage = (e) => {
             if (out) out[p] = keepIdx;
             continue;
           }
-          if (near[a * n + b]) {
+          if (near[a * n + b] && !moving[(((p / W) | 0) >> 3) * BW + ((p % W) >> 3)]) {
             if (want[p] === a) cnt[p]++;
             else {
               want[p] = a;

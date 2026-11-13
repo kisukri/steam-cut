@@ -1,4 +1,5 @@
 export default {
+  'out.uneven': 'The video is {src} fps, so {fps} fps will stutter. Use {good}',
   'st.colors': 'Colors reduced to {c}',
   'f.colors.32': '32 colors · smallest, visible color blocks',
   'est.ceil': 'About {size} if every frame were stored whole. Only the changed parts are stored, so it is usually smaller. If it is still over {mb}MB it is fitted automatically',

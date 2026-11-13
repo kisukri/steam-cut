@@ -215,24 +215,24 @@ function toCentiseconds(delays) {
   });
 }
 
-async function encodeGifs(cap, keep, tol = 0) {
+async function encodeGifs(cap, keep, tol = 0, moveMin = 0) {
   const { idx, delays } = pickFrames(cap.delays, keep);
   const cs = toCentiseconds(delays);
   const pals = idx.map((i) => cap.palettes[i]);
   const results = await Promise.all(
     cap.panels.map((frames, p) =>
-      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha, shared: cap.shared, tol })
+      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha, shared: cap.shared, tol, moveMin })
     )
   );
   return { files: results.map((r) => r.bytes), frameCount: idx.length };
 }
 
-export async function exportAnimated(cap, { autoFit, hexify, onStatus, limit = STEAM_LIMIT, mb = 5, tol = 0 }) {
+export async function exportAnimated(cap, { autoFit, hexify, onStatus, limit = STEAM_LIMIT, mb = 5, tol = 0, moveMin = 0 }) {
   let keep = cap.delays.length;
   let out;
   for (let attempt = 0; attempt < 6; attempt++) {
     onStatus(attempt === 0 ? t('st.encode', { n: cap.panels.length, f: keep }) : t('st.reencode', { f: keep, mb }));
-    out = await encodeGifs(cap, keep, tol);
+    out = await encodeGifs(cap, keep, tol, moveMin);
     const max = Math.max(...out.files.map((f) => f.length));
     if (!autoFit || max <= limit || keep <= 2) break;
     keep = Math.max(2, Math.floor(keep * (limit / max) * 0.92));

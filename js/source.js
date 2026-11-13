@@ -1,5 +1,4 @@
-// open / clear files
-import { cancelEstimate } from './generate.js';
+import { cancelEstimate, evenFpsList } from './generate.js';
 import { stopSpin, updateModeUI } from './guide-ui.js';
 import { t } from './i18n.js';
 import { loadSource } from './media.js';
@@ -48,7 +47,6 @@ export async function openFile(file) {
   try {
     await openSource(await loadSource(file), file);
   } catch (err) {
-    // bad new file shouldn't kill the one already loaded
     if (state.source) {
       showFileInfo();
       toast('❌ ' + err.message, 5000);
@@ -70,7 +68,6 @@ export async function openSource(src, file) {
     fitAll();
     resetCropHistory();
     await showAt(0);
-    // music -> go straight to vinyl + fill player text
     if (src.kind === 'audio') {
       import('./player.js').then((m) => m.fillPlayerFrom(file));
       state.guide.style = 'vinyl';
@@ -87,9 +84,14 @@ export function setupForSource() {
   const src = state.source;
   const anim = src.animated;
   $('timeBox').hidden = !anim;
-  // can't read video fps, so 'orig' is gif only
   $('fps').querySelector('option[value="0"]').hidden = src.kind !== 'gif';
   $('fps').value = src.kind === 'gif' ? '0' : isGuide() ? '25' : '15';
+  if (src.kind === 'video' && src.fps && !isGuide()) {
+    const opts = [...$('fps').options].map((o) => Number(o.value)).filter((v) => v > 0);
+    const even = opts.filter((v) => evenFpsList(src.fps).some((f) => Math.abs(f - v) < 0.26));
+    const pick = even.filter((v) => v <= 20).pop() || even.filter((v) => v <= 30).pop();
+    if (pick) $('fps').value = String(pick);
+  }
   $('scale').value = anim || isGuide() ? '1' : '2';
   updateModeUI();
   if (anim) {

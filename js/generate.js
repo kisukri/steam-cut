@@ -20,6 +20,13 @@ export function bindOutput() {
   $('zip').addEventListener('click', downloadZip);
 }
 
+export function evenFpsList(srcFps) {
+  const out = [];
+  for (let k = 1; srcFps / k >= 5; k++) if (srcFps / k <= 50.5) out.push(srcFps / k);
+  return out;
+}
+const isEvenFps = (fps, srcFps) => evenFpsList(srcFps).some((f) => Math.abs(f - fps) < 0.26);
+
 export function currentFps() {
   const fps = Number($('fps').value);
   if (state.source.kind === 'gif') return fps;
@@ -51,6 +58,15 @@ export function updateOutInfo() {
     parts.push(t('out.frames', { n, s: outSeconds().toFixed(2) }));
     if (n > max) parts.push('⚠️ ' + t('out.cap', { max }));
     else if (outSeconds() > 15) parts.push('⚠️ ' + t('out.long', { mb: limitMB(state.layoutKey) }));
+    const sf = state.source.fps;
+    if (sf && !isGuide() && !isEvenFps(currentFps(), sf)) {
+      const have = [...$('fps').options].map((o) => Number(o.value));
+      const good = evenFpsList(sf)
+        .filter((f) => have.some((v) => Math.abs(v - f) < 0.26))
+        .map((f) => Math.round(f))
+        .join(' / ');
+      parts.push('⚠️ ' + t('out.uneven', { src: +sf.toFixed(2), fps: currentFps(), good }));
+    }
   }
   if (geo.stripH > 2000) parts.push('⚠️ ' + t('out.tall'));
   $('outInfo').textContent = parts.join(' · ');
@@ -157,8 +173,10 @@ export async function generate() {
       let colors = Number($('colors').value);
       let first = 0;
       const smooth = $('fitMode').value === 'smooth';
-      let tol = 1;
-      const tolSteps = smooth ? [2, 3, 4, 6] : [2];
+      const ladder = smooth
+        ? [[1, 6], [2, 16], [2, 40], [3, 999], [4, 999], [6, 999]]
+        : [[1, 6], [2, 16], [2, 40]];
+      let step = 0;
       const fits = (o) => Math.max(...o.files.map((f) => f.length)) <= limit;
       for (let tries = 0; ; tries++) {
         const cap = await captureFrames(src, {
@@ -180,14 +198,13 @@ export async function generate() {
         setProgress(0.75);
         const n = cap.delays.length;
         first = first || n;
-        out = await exportAnimated(cap, { autoFit: autoFit && tries >= 3, hexify, onStatus: setStatus, limit, mb, tol });
+        const enc = (o) => exportAnimated(cap, { hexify, limit, mb, tol: ladder[step][0], moveMin: ladder[step][1], ...o });
+        out = await enc({ autoFit: autoFit && tries >= 3, onStatus: setStatus });
         if (!autoFit || tries >= 3 || fits(out) || n <= 2) break;
-        for (const next of tolSteps) {
-          if (next <= tol || state.cancelled) continue;
-          tol = next;
+        while (!fits(out) && step < ladder.length - 1 && !state.cancelled) {
+          step++;
           setStatus(t('st.requality', { mb }));
-          out = await exportAnimated(cap, { autoFit: false, hexify, onStatus: () => {}, limit, mb, tol });
-          if (fits(out)) break;
+          out = await enc({ autoFit: false, onStatus: () => {} });
         }
         if (fits(out)) break;
         let max = Math.max(...out.files.map((f) => f.length));
@@ -200,12 +217,16 @@ export async function generate() {
           setStatus(t('st.requality', { mb }));
           if (max <= limit * 0.97) continue;
         }
-        const plan = evenPlan(dur, Math.floor(n * (limit / max) * 0.92));
+        let plan = evenPlan(dur, Math.floor(n * (limit / max) * 0.92));
+        if (src.fps) {
+          const k = Math.ceil((dur * src.fps) / Math.max(1, Math.floor(n * (limit / max) * 0.92)));
+          plan = { fps: src.fps / k, n: Math.max(1, Math.round((dur * src.fps) / k)) };
+        }
         if (plan.n >= n) break;
         setStatus(t('st.reencode', { f: plan.n, mb }));
         fps = plan.fps;
       }
-      out.softened = tol > 1;
+      out.softened = step > 2;
       if (colors < Number($('colors').value)) out.colors = colors;
       out.originalFrames = Math.max(first, out.originalFrames);
     } else {

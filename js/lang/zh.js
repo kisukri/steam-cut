@@ -1,4 +1,5 @@
 export default {
+  'out.uneven': '源视频是 {src} 帧/秒，选 {fps} 会一顿一顿，建议 {good}',
   'st.colors': '颜色数减到 {c}',
   'f.colors.32': '32 色 · 最小，色块明显',
   'est.ceil': '按整帧估算约 {size}，实际只保存变化的部分，通常更小；仍超过 {mb}MB 时会自动处理',

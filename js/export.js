@@ -96,7 +96,7 @@ function defaultPaint(crop, bg) {
   };
 }
 
-export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false, fixedPalette = false, globalPalette = false }) {
+export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false, fixedPalette = false, globalPalette = false, dither = 0 }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -142,7 +142,7 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
       const { drawable, delay } = f;
       draw(ctx, w, h, drawable, f);
       const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
-      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo, palette: shared && shared.palette, gray: shared ? shared.gray : 0 }, [rgba]).then((r) => {
+      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo, palette: shared && shared.palette, gray: shared ? shared.gray : 0, dither }, [rgba]).then((r) => {
         done++;
         if (onProgress) onProgress(done, expected);
         return r;
@@ -263,7 +263,7 @@ export async function exportStatic(source, { crop, geo, bg, hexify }) {
   return { files, ext: 'png', mime: 'image/png', frameCount: 1, originalFrames: 1 };
 }
 
-export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, paint, alpha = false, angles = [0], shared = false }) {
+export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, paint, alpha = false, angles = [0], shared = false, dither = false }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -278,7 +278,7 @@ export async function estimateFrameBytes(drawable, { crop, geo, bg, colors, pain
     (paint || defaultPaint(crop, bg))(ctx, w, h, drawable, { angle });
     const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
     const { sizes } = await runOnce(
-      { type: 'estimate', rgba, w, h, step, colors, alpha, shared, panels: geo.panels.map((p) => ({ x: p.x, w: p.w })) },
+      { type: 'estimate', rgba, w, h, step, colors, alpha, shared, dither, panels: geo.panels.map((p) => ({ x: p.x, w: p.w })) },
       [rgba]
     );
     worst = Math.max(worst, ...sizes);

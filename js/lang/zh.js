@@ -1,4 +1,6 @@
 export default {
+  'f.dither.em': '让腮红、天空这类柔和渐变不再变成色块，文件大约大 20%',
+  'f.dither': '渐变抖动',
   'out.uneven': '源视频是 {src} 帧/秒，选 {fps} 会一顿一顿，建议 {good}',
   'st.colors': '颜色数减到 {c}',
   'f.colors.32': '32 色 · 最小，色块明显',

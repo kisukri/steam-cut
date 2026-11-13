@@ -1,4 +1,6 @@
 export default {
+  'f.dither.em': 'Keeps soft gradients (blush, sky) from turning into flat blocks, files about 20% larger',
+  'f.dither': 'Dither gradients',
   'out.uneven': 'The video is {src} fps, so {fps} fps will stutter. Use {good}',
   'st.colors': 'Colors reduced to {c}',
   'f.colors.32': '32 colors · smallest, visible color blocks',

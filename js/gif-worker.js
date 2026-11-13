@@ -77,11 +77,84 @@ function grayIndex(full, palette, gray, alpha) {
   return index;
 }
 
-function toIndex(full, w, h, step, colors, alpha, fixed, gray) {
+const BAYER = [0, 32, 8, 40, 2, 34, 10, 42, 48, 16, 56, 24, 50, 18, 58, 26, 12, 44, 4, 36, 14, 46, 6, 38, 60, 28, 52, 20, 62, 30, 54, 22, 3, 35, 11, 43, 1, 33, 9, 41, 51, 19, 59, 27, 49, 17, 57, 25, 15, 47, 7, 39, 13, 45, 5, 37, 63, 31, 55, 23, 61, 29, 53, 21];
+let mixPal = null;
+let mixNN = null;
+let mixCache = null;
+function mixSetup(pal) {
+  if (mixPal && mixPal.length === pal.length && mixPal.every((c, k) => c[0] === pal[k][0] && c[1] === pal[k][1] && c[2] === pal[k][2])) return;
+  mixPal = pal;
+  mixCache = new Map();
+  const n = pal.length;
+  mixNN = new Float64Array(n).fill(Infinity);
+  for (let a = 0; a < n; a++) {
+    for (let b = 0; b < n; b++) {
+      if (a === b) continue;
+      const dd = (pal[a][0] - pal[b][0]) ** 2 + (pal[a][1] - pal[b][1]) ** 2 + (pal[a][2] - pal[b][2]) ** 2;
+      if (dd < mixNN[a]) mixNN[a] = dd;
+    }
+  }
+}
+function mixFor(r, g, b) {
+  const pal = mixPal;
+  const n = pal.length;
+  let i1 = 0;
+  let d1 = Infinity;
+  for (let k = 0; k < n; k++) {
+    const c = pal[k];
+    const dd = (r - c[0]) ** 2 + (g - c[1]) ** 2 + (b - c[2]) ** 2;
+    if (dd < d1) {
+      d1 = dd;
+      i1 = k;
+    }
+  }
+  const c1 = pal[i1];
+  let i2 = i1;
+  let amt = 0;
+  let best = d1;
+  for (let k = 0; k < n; k++) {
+    if (k === i1) continue;
+    const c = pal[k];
+    const vx = c[0] - c1[0];
+    const vy = c[1] - c1[1];
+    const vz = c[2] - c1[2];
+    const len = vx * vx + vy * vy + vz * vz;
+    if (len > 2.56 * Math.max(mixNN[i1], mixNN[k]) || len > 48 * 48) continue;
+    const tt = ((r - c1[0]) * vx + (g - c1[1]) * vy + (b - c1[2]) * vz) / len;
+    if (tt <= 0.03) continue;
+    const t = Math.min(1, tt);
+    const res = (r - c1[0] - t * vx) ** 2 + (g - c1[1] - t * vy) ** 2 + (b - c1[2] - t * vz) ** 2;
+    if (res < best) {
+      best = res;
+      i2 = k;
+      amt = Math.round(t * 64);
+    }
+  }
+  return [i1, i2, amt];
+}
+function mixIndex(full, w, pal) {
+  mixSetup(pal);
+  const index = new Uint8Array(full.length / 4);
+  for (let i = 0, p = 0; i < index.length; i++, p += 4) {
+    const r = full[p];
+    const g = full[p + 1];
+    const b = full[p + 2];
+    const key = ((r >> 2) << 12) | ((g >> 2) << 6) | (b >> 2);
+    let e = mixCache.get(key);
+    if (!e) {
+      e = mixFor((r & 252) | 2, (g & 252) | 2, (b & 252) | 2);
+      mixCache.set(key, e);
+    }
+    index[i] = e[2] > BAYER[(((i / w) | 0) & 7) * 8 + (i % w & 7)] ? e[1] : e[0];
+  }
+  return index;
+}
+
+function toIndex(full, w, h, step, colors, alpha, fixed, gray, dither) {
   if (fixed && gray) return { palette: fixed, index: grayIndex(full, fixed, gray, alpha) };
   if (fixed) {
     const solid = alpha ? fixed.slice(0, -1) : fixed;
-    const index = applyPalette(full, solid);
+    const index = dither ? mixIndex(full, w, solid) : applyPalette(full, solid);
     if (alpha) for (let i = 0, p = 3; i < index.length; i++, p += 4) if (full[p] < 128) index[i] = solid.length;
     return { palette: fixed, index };
   }
@@ -131,7 +204,7 @@ self.onmessage = (e) => {
   try {
     if (d.type === 'index') {
       const full = new Uint8ClampedArray(d.rgba);
-      const { palette, index } = toIndex(full, d.w, d.h, d.step, d.colors, d.alpha, d.palette, d.gray);
+      const { palette, index } = toIndex(full, d.w, d.h, d.step, d.colors, d.alpha, d.palette, d.gray, d.dither);
       const panels = d.panels.map((p) => {
         const out = new Uint8Array(p.w * d.h);
         for (let y = 0; y < d.h; y++) {
@@ -153,7 +226,7 @@ self.onmessage = (e) => {
       let index;
       if (d.shared) {
         const bp = buildPalette(subsample(full, d.w, d.h, d.step, true), d.colors, d.alpha);
-        ({ palette, index } = toIndex(full, d.w, d.h, d.step, d.colors, d.alpha, bp.palette, bp.gray));
+        ({ palette, index } = toIndex(full, d.w, d.h, d.step, d.colors, d.alpha, bp.palette, bp.gray, d.dither));
       } else ({ palette, index } = toIndex(full, d.w, d.h, d.step, d.colors, d.alpha));
       const sizes = d.panels.map((p) => {
         const out = new Uint8Array(p.w * d.h);

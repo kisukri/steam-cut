@@ -9,7 +9,7 @@ import { $, isGuide, layout, options, state } from './state.js';
 import { ask, formatSize, setProgress, setStatus, updateFab } from './ui.js';
 
 export function bindOutput() {
-  ['scale', 'fps', 'colors', 'removeGaps', 'bg'].forEach((id) => $(id).addEventListener('change', refresh));
+  ['scale', 'fps', 'colors', 'removeGaps', 'bg', 'dither'].forEach((id) => $(id).addEventListener('change', refresh));
   $('gap').addEventListener('change', () => {
     const v = Number($('gap').value);
     state.gaps[state.layoutKey] = Number.isFinite(v) && v >= 0 ? v : LAYOUTS[state.layoutKey].gap;
@@ -83,7 +83,7 @@ export function settingsSignature() {
     scale: $('scale').value,
     colors: $('colors').value,
     bg: $('bg').value,
-    sw: [$('removeGaps').checked, $('autoFit').checked, $('hexify').checked],
+    sw: [$('removeGaps').checked, $('autoFit').checked, $('hexify').checked, $('dither').checked],
     fit: $('fitMode').value,
     gap: state.gaps[state.layoutKey],
     g: isGuide() ? state.guide : null,
@@ -145,6 +145,7 @@ export async function generate() {
           alpha: guideOpts().transparent,
           fixedPalette: !src.animated,
           globalPalette: src.animated,
+          dither: src.animated && $('dither').checked,
           isCancelled: () => state.cancelled,
           onProgress: (i, total) => {
             setProgress(Math.min(0.7, (i / total) * 0.7));
@@ -189,6 +190,7 @@ export async function generate() {
           colors,
           maxFrames: frameCap(geo),
           globalPalette: true,
+          dither: $('dither').checked,
           isCancelled: () => state.cancelled,
           onProgress: (i, n) => {
             setProgress(Math.min(0.7, (i / n) * 0.7));
@@ -295,6 +297,7 @@ export async function runEstimate() {
       alpha: isGuide() && guideOpts().transparent,
       angles: isGuide() && guideOpts().spin ? [0.41, 1.13] : [0],
       shared: true,
+      dither: state.source.animated && $('dither').checked,
     });
     if (token !== estToken) return;
     const frames = Math.min(frameEstimate(), frameCap(geo));

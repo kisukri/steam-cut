@@ -78,6 +78,7 @@ export function updateModeUI() {
     $('colorsField').hidden = !outAnim;
     $('autoFitField').hidden = !outAnim;
     $('fitModeField').hidden = !src.animated || g;
+    $('ditherField').hidden = !src.animated;
   }
 }
 

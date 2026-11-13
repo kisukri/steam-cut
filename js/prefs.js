@@ -1,7 +1,7 @@
 import { $, state } from './state.js';
 
 const KEY = 'ssc-prefs';
-const SWITCHES = ['removeGaps', 'autoFit', 'hexify'];
+const SWITCHES = ['removeGaps', 'autoFit', 'hexify', 'dither'];
 
 export function readPrefs() {
   try {

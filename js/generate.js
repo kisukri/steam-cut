@@ -190,18 +190,23 @@ export async function generate() {
           if (fits(out)) break;
         }
         if (fits(out)) break;
-        if (smooth && colors > 128) {
-          colors = 128;
+        let max = Math.max(...out.files.map((f) => f.length));
+        const lower = smooth ? COLOR_STEPS.filter(([c]) => c < colors) : [];
+        if (lower.length) {
+          const cur = COLOR_STEPS.find(([c]) => c <= colors)[1];
+          const pick = lower.find(([, k]) => (max * k) / cur <= limit * 0.97) || lower[lower.length - 1];
+          colors = pick[0];
+          max = (max * pick[1]) / cur;
           setStatus(t('st.requality', { mb }));
-          continue;
+          if (max <= limit * 0.97) continue;
         }
-        const max = Math.max(...out.files.map((f) => f.length));
         const plan = evenPlan(dur, Math.floor(n * (limit / max) * 0.92));
         if (plan.n >= n) break;
         setStatus(t('st.reencode', { f: plan.n, mb }));
         fps = plan.fps;
       }
-      out.softened = tol > 1 || colors < Number($('colors').value);
+      out.softened = tol > 1;
+      if (colors < Number($('colors').value)) out.colors = colors;
       out.originalFrames = Math.max(first, out.originalFrames);
     } else {
       out = await exportStatic(src, { crop: state.crop, geo, bg: $('bg').value, hexify });
@@ -213,7 +218,8 @@ export async function generate() {
     const over = out.files.some((f) => f.length > sizeLimit(state.layoutKey));
     let msg = t('st.done');
     if (out.frameCount < out.originalFrames) msg += ' ' + t('st.reduced', { a: out.originalFrames, b: out.frameCount, mb });
-    else if (out.softened) msg += ' ' + t('st.softened', { mb });
+    else if (out.softened && !out.colors) msg += ' ' + t('st.softened', { mb });
+    if (out.colors) msg += (out.frameCount < out.originalFrames ? '，' : ' ') + t('st.colors', { c: out.colors });
     if (over) msg += ' ' + t('st.over', { mb });
     setStatus(msg, over ? 'err' : 'ok');
     if (src.animated) await showAt(state.start);
@@ -229,6 +235,13 @@ export async function generate() {
     setTimeout(() => setProgress(null), 600);
   }
 }
+
+const COLOR_STEPS = [
+  [256, 1],
+  [128, 0.8],
+  [64, 0.63],
+  [32, 0.48],
+];
 
 let estTimer;
 

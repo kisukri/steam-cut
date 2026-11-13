@@ -1,8 +1,10 @@
 export default {
+  'st.colors': '颜色数减到 {c}',
+  'f.colors.32': '32 色 · 最小，色块明显',
   'est.ceil': '按整帧估算约 {size}，实际只保存变化的部分，通常更小；仍超过 {mb}MB 时会自动处理',
   'st.softened': '为控制在 {mb}MB 内，略降了画质',
   'st.requality': '超过 {mb}MB，略降画质重试',
-  'f.fit.smooth': '优先流畅（略降画质，保帧率）',
+  'f.fit.smooth': '优先流畅（减少颜色，保帧率）',
   'f.fit.quality': '优先画质（降低帧率）',
   'f.fitMode': '超过上限时',
   'faq.a9': '展柜选成了「我的指南」。编辑个人资料 → 展柜 → 选「收藏的指南」，再选你的指南；列表里没有就先去指南页面点收藏',

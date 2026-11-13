@@ -1,8 +1,10 @@
 export default {
+  'st.colors': 'Colors reduced to {c}',
+  'f.colors.32': '32 colors · smallest, visible color blocks',
   'est.ceil': 'About {size} if every frame were stored whole. Only the changed parts are stored, so it is usually smaller. If it is still over {mb}MB it is fitted automatically',
   'st.softened': 'Quality lowered slightly to stay under {mb}MB',
   'st.requality': 'Over {mb}MB, retrying with slightly lower quality',
-  'f.fit.smooth': 'Keep it smooth (slightly lower quality)',
+  'f.fit.smooth': 'Keep it smooth (fewer colors, same frame rate)',
   'f.fit.quality': 'Keep quality (lower frame rate)',
   'f.fitMode': 'When over the limit',
   'faq.a9': 'You picked "My Guides". Edit Profile → Showcases → pick "Favorite Guide", then your guide. If it\'s not listed, favorite it on the guide page first',

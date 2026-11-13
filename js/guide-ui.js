@@ -1,4 +1,3 @@
-// guide mode ui: disc options + spin preview
 import { currentFps } from './generate.js';
 import { discPlan, paintDisc } from './guide.js';
 import { t } from './i18n.js';
@@ -10,7 +9,6 @@ export function guideFrameOpts() {
   return { start: state.start, end: state.end, fps: currentFps() || 25, period: state.guide.period, dir: state.guide.dir, spin: spinOn() };
 }
 
-// square + spin looks dumb, so no
 export function spinOn() {
   return state.guide.spin && state.guide.style !== 'square';
 }
@@ -79,10 +77,10 @@ export function updateModeUI() {
     $('fpsField').hidden = !outAnim;
     $('colorsField').hidden = !outAnim;
     $('autoFitField').hidden = !outAnim;
+    $('fitModeField').hidden = !src.animated || g;
   }
 }
 
-// steam shows it at 160px, keep the same
 const GUIDE_CSS = 160;
 
 export function drawGuidePreview(drawable) {
@@ -90,7 +88,6 @@ export function drawGuidePreview(drawable) {
   const dpr = window.devicePixelRatio || 1;
   const canvas = $('guideCanvas');
   const px = Math.round(S * dpr);
-  // resizing clears + reallocs the canvas, only do it when the size really changes
   if (canvas.width !== px) canvas.width = canvas.height = px;
   paintDisc(canvas.getContext('2d'), canvas.width, drawable, state.crop, state.spin.angle, guideOpts());
 }

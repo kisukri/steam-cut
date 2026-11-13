@@ -68,6 +68,7 @@ export function settingsSignature() {
     colors: $('colors').value,
     bg: $('bg').value,
     sw: [$('removeGaps').checked, $('autoFit').checked, $('hexify').checked],
+    fit: $('fitMode').value,
     gap: state.gaps[state.layoutKey],
     g: isGuide() ? state.guide : null,
   });
@@ -118,6 +119,8 @@ export async function generate() {
         const cap = await captureFrames(src, {
           crop: state.crop,
           geo,
+          start: state.start,
+          end: state.end,
           colors: Number($('colors').value),
           maxFrames: frameCap(geo),
           frames: discFrames(src, { ...guideFrameOpts(), n }),
@@ -125,6 +128,7 @@ export async function generate() {
           paint: guidePaint(),
           alpha: guideOpts().transparent,
           fixedPalette: !src.animated,
+          globalPalette: src.animated,
           isCancelled: () => state.cancelled,
           onProgress: (i, total) => {
             setProgress(Math.min(0.7, (i / total) * 0.7));
@@ -150,7 +154,12 @@ export async function generate() {
       const autoFit = $('autoFit').checked;
       const dur = state.end - state.start;
       let fps = currentFps();
+      let colors = Number($('colors').value);
       let first = 0;
+      const smooth = $('fitMode').value === 'smooth';
+      let tol = 1;
+      const tolSteps = smooth ? [2, 3, 4, 6] : [2];
+      const fits = (o) => Math.max(...o.files.map((f) => f.length)) <= limit;
       for (let tries = 0; ; tries++) {
         const cap = await captureFrames(src, {
           crop: state.crop,
@@ -159,8 +168,9 @@ export async function generate() {
           end: state.end,
           fps,
           bg: $('bg').value,
-          colors: Number($('colors').value),
+          colors,
           maxFrames: frameCap(geo),
+          globalPalette: true,
           isCancelled: () => state.cancelled,
           onProgress: (i, n) => {
             setProgress(Math.min(0.7, (i / n) * 0.7));
@@ -170,15 +180,28 @@ export async function generate() {
         setProgress(0.75);
         const n = cap.delays.length;
         first = first || n;
-        out = await exportAnimated(cap, { autoFit: autoFit && tries >= 3, hexify, onStatus: setStatus, limit, mb });
-        if (!autoFit || tries >= 3) break;
+        out = await exportAnimated(cap, { autoFit: autoFit && tries >= 3, hexify, onStatus: setStatus, limit, mb, tol });
+        if (!autoFit || tries >= 3 || fits(out) || n <= 2) break;
+        for (const next of tolSteps) {
+          if (next <= tol || state.cancelled) continue;
+          tol = next;
+          setStatus(t('st.requality', { mb }));
+          out = await exportAnimated(cap, { autoFit: false, hexify, onStatus: () => {}, limit, mb, tol });
+          if (fits(out)) break;
+        }
+        if (fits(out)) break;
+        if (smooth && colors > 128) {
+          colors = 128;
+          setStatus(t('st.requality', { mb }));
+          continue;
+        }
         const max = Math.max(...out.files.map((f) => f.length));
-        if (max <= limit || n <= 2) break;
         const plan = evenPlan(dur, Math.floor(n * (limit / max) * 0.92));
         if (plan.n >= n) break;
         setStatus(t('st.reencode', { f: plan.n, mb }));
         fps = plan.fps;
       }
+      out.softened = tol > 1 || colors < Number($('colors').value);
       out.originalFrames = Math.max(first, out.originalFrames);
     } else {
       out = await exportStatic(src, { crop: state.crop, geo, bg: $('bg').value, hexify });
@@ -190,6 +213,7 @@ export async function generate() {
     const over = out.files.some((f) => f.length > sizeLimit(state.layoutKey));
     let msg = t('st.done');
     if (out.frameCount < out.originalFrames) msg += ' ' + t('st.reduced', { a: out.originalFrames, b: out.frameCount, mb });
+    else if (out.softened) msg += ' ' + t('st.softened', { mb });
     if (over) msg += ' ' + t('st.over', { mb });
     setStatus(msg, over ? 'err' : 'ok');
     if (src.animated) await showAt(state.start);
@@ -236,7 +260,7 @@ export async function runEstimate() {
       paint: isGuide() ? guidePaint() : undefined,
       alpha: isGuide() && guideOpts().transparent,
       angles: isGuide() && guideOpts().spin ? [0.41, 1.13] : [0],
-      shared: isGuide() && !state.source.animated,
+      shared: true,
     });
     if (token !== estToken) return;
     const frames = Math.min(frameEstimate(), frameCap(geo));
@@ -245,6 +269,8 @@ export async function runEstimate() {
     const mb = limitMB(state.layoutKey);
     if (total <= limit) {
       el.textContent = t('est.size', { size: formatSize(total) });
+    } else if ($('autoFit').checked && !isGuide()) {
+      el.textContent = t('est.ceil', { size: formatSize(total), mb });
     } else if ($('autoFit').checked) {
       let n = Math.max(2, Math.floor(frames * (limit / total) * 0.92));
       if (!isGuide()) n = evenPlan(Math.max(0.05, outSeconds()), n).n;

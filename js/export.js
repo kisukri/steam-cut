@@ -72,6 +72,22 @@ class IndexPool {
   }
 }
 
+function samplePixels(data, w, h, step) {
+  const out = new Uint8ClampedArray(Math.ceil(w / step) * Math.ceil(h / step) * 4);
+  let o = 0;
+  for (let y = 0; y < h; y += step) {
+    for (let x = 0; x < w; x += step) {
+      const s = (y * w + x) * 4;
+      if (data[s + 3] < 128) continue;
+      out[o++] = data[s];
+      out[o++] = data[s + 1];
+      out[o++] = data[s + 2];
+      out[o++] = 255;
+    }
+  }
+  return out.slice(0, o);
+}
+
 function defaultPaint(crop, bg) {
   return (ctx, w, h, drawable) => {
     ctx.fillStyle = bg;
@@ -80,7 +96,7 @@ function defaultPaint(crop, bg) {
   };
 }
 
-export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false, fixedPalette = false }) {
+export async function captureFrames(source, { crop, geo, start, end, fps, bg, colors, maxFrames, onProgress, isCancelled, frames, paint, expected: exp, alpha = false, fixedPalette = false, globalPalette = false }) {
   const w = geo.stripW;
   const h = geo.stripH;
   const canvas = document.createElement('canvas');
@@ -102,17 +118,36 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
   let shared = null;
 
   try {
+    if (globalPalette && source.animated) {
+      const K = 12;
+      const st = start || 0;
+      const len = Math.max(0, (end || source.duration || 0) - st);
+      const parts = [];
+      for (let k = 0; k < K; k++) {
+        if (isCancelled && isCancelled()) throw new Error(t('st.cancelled'));
+        draw(ctx, w, h, await source.renderAt(st + ((k + 0.5) / K) * len), { angle: 0 });
+        parts.push(samplePixels(ctx.getImageData(0, 0, w, h).data, w, h, step));
+      }
+      const samples = new Uint8ClampedArray(parts.reduce((a, b) => a + b.length, 0));
+      let o = 0;
+      for (const part of parts) {
+        samples.set(part, o);
+        o += part.length;
+      }
+      const r = await runOnce({ type: 'palette', samples: samples.buffer, colors, alpha }, [samples.buffer]);
+      shared = { palette: r.palette, gray: r.gray };
+    }
     for await (const f of frames || source.iterate(start, end, fps)) {
       if (isCancelled && isCancelled()) throw new Error(t('st.cancelled'));
       const { drawable, delay } = f;
       draw(ctx, w, h, drawable, f);
       const rgba = ctx.getImageData(0, 0, w, h).data.buffer;
-      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo, palette: shared }, [rgba]).then((r) => {
+      const job = pool.run({ type: 'index', rgba, w, h, step, colors, alpha, panels: panelGeo, palette: shared && shared.palette, gray: shared ? shared.gray : 0 }, [rgba]).then((r) => {
         done++;
         if (onProgress) onProgress(done, expected);
         return r;
       });
-      if (fixedPalette && !shared) shared = (await job).palette;
+      if (fixedPalette && !shared) shared = { palette: (await job).palette, gray: 0 };
       jobs.push(job);
       live.add(job);
       job.then(() => live.delete(job), () => live.delete(job));
@@ -129,6 +164,7 @@ export async function captureFrames(source, { crop, geo, start, end, fps, bg, co
       height: h,
       alpha,
       shared: !!shared,
+      gray: shared ? shared.gray : 0,
     };
   } finally {
     pool.close();
@@ -179,24 +215,24 @@ function toCentiseconds(delays) {
   });
 }
 
-async function encodeGifs(cap, keep) {
+async function encodeGifs(cap, keep, tol = 0) {
   const { idx, delays } = pickFrames(cap.delays, keep);
   const cs = toCentiseconds(delays);
   const pals = idx.map((i) => cap.palettes[i]);
   const results = await Promise.all(
     cap.panels.map((frames, p) =>
-      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha, shared: cap.shared })
+      runOnce({ type: 'encode', frames: idx.map((i) => frames[i]), palettes: pals, delays: cs, width: cap.widths[p], height: cap.height, alpha: cap.alpha, shared: cap.shared, tol })
     )
   );
   return { files: results.map((r) => r.bytes), frameCount: idx.length };
 }
 
-export async function exportAnimated(cap, { autoFit, hexify, onStatus, limit = STEAM_LIMIT, mb = 5 }) {
+export async function exportAnimated(cap, { autoFit, hexify, onStatus, limit = STEAM_LIMIT, mb = 5, tol = 0 }) {
   let keep = cap.delays.length;
   let out;
   for (let attempt = 0; attempt < 6; attempt++) {
     onStatus(attempt === 0 ? t('st.encode', { n: cap.panels.length, f: keep }) : t('st.reencode', { f: keep, mb }));
-    out = await encodeGifs(cap, keep);
+    out = await encodeGifs(cap, keep, tol);
     const max = Math.max(...out.files.map((f) => f.length));
     if (!autoFit || max <= limit || keep <= 2) break;
     keep = Math.max(2, Math.floor(keep * (limit / max) * 0.92));

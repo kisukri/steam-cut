@@ -1,4 +1,3 @@
-// remember settings in localStorage. per browser, that's fine
 import { $, state } from './state.js';
 
 const KEY = 'ssc-prefs';
@@ -12,7 +11,6 @@ export function readPrefs() {
   }
 }
 
-// must run before binds/tabs or they read old values
 export function loadPrefs() {
   const p = readPrefs();
   if (p.layoutKey && p.layoutKey in state.gaps) state.layoutKey = p.layoutKey;
@@ -20,6 +18,7 @@ export function loadPrefs() {
   if (p.guide) Object.assign(state.guide, p.guide);
   if (typeof p.merge === 'boolean') state.merge = p.merge;
   if (p.colors) $('colors').value = p.colors;
+  if (p.fitMode === 'quality' || p.fitMode === 'smooth') $('fitMode').value = p.fitMode;
   if (p.bg) $('bg').value = p.bg;
   SWITCHES.forEach((id) => typeof p[id] === 'boolean' && ($(id).checked = p[id]));
 
@@ -45,6 +44,7 @@ export function savePrefs() {
       guide: state.guide,
       merge: state.merge,
       colors: $('colors').value,
+      fitMode: $('fitMode').value,
       bg: $('bg').value,
       player: readPrefs().player,
     };
